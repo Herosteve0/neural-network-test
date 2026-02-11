@@ -314,7 +314,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Visualization
   Neuron_Prefab: {fileID: 5872164994382609196, guid: e5c49bae4ddd3774bad3b44fbf3dc755, type: 3}
   NeuronConnection_Prefab: {fileID: 5567620700700751709, guid: 3e3525255c8540c41a056253136037a0, type: 3}
-  space: 17.5
+  spacing: 17.5
+  space: {x: 1, y: 1}
+  ShowInfo: 0
+  FocusedCell: {x: 0, y: 0}
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -466,9 +469,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraHandler
   move_speed: 25
-  mouse_speed: 0.5
+  mouse_speed: 5
   zoom_speed: 50
   scroll_speed: 5
+  zoom: 10
+  zoomlimit: {x: 2, y: 10000}
 --- !u!1 &619394800
 GameObject:
   m_ObjectHideFlags: 0

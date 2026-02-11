@@ -14,28 +14,30 @@ public class ProgramHandler : MonoBehaviour {
         if (Input.GetKeyDown(KeyCode.L)) {
             if (Network != null) RefreshNetwork();
         }
+        if (Input.GetKeyDown(KeyCode.Tab)) Visualization.ToggleInfo();
 
+        SelectCell();
+    }
+
+    void SelectCell() {
         if (!CameraHandler.MouseOnScreen()) return;
         if (!Input.GetMouseButtonDown(0)) return;
 
-        PointerEventData data = new PointerEventData(EventSystem.current);
-        data.position = Input.mousePosition;
+        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
 
-        List<RaycastResult> results = new List<RaycastResult>();
-        EventSystem.current.RaycastAll(data, results);
+        RaycastHit2D hit = Physics2D.Raycast(mousePos, Vector2.zero);
 
-        Debug.Log("meow");
-        foreach (RaycastResult r in results) {
-            ObjectVariables vars = r.gameObject.GetComponent<ObjectVariables>();
-            Debug.Log(vars);
-            if (vars == null) continue;
-            if (vars.type != ObjectType.Neuron) continue;
-            Debug.Log($"Layer {vars.layer}, Index: {vars.index}");
-        }
+        if (hit.collider == null) return;
+
+        ObjectVariables vars = hit.collider.gameObject.GetComponent<ObjectVariables>();
+        if (vars == null) return;
+
+        Visualization.Focus(vars.layer, vars.index);
     }
 
     void CreateNetwork() {
-        int[] layers = { 5, 3, 3, 4 };
+        //int[] layers = { 5, 3, 3, 4 };
+        int[] layers = { 784, 16, 16, 10 };
         Network = new NeuralNetwork(layers);
     }
 

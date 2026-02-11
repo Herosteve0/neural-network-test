@@ -1,24 +1,31 @@
+using System;
 using Unity.VisualScripting;
+using UnityEditor.Experimental.GraphView;
 using UnityEngine;
 
 public class CameraHandler : MonoBehaviour
 {
     Transform transform;
     Camera camera;
+    static CameraHandler instance;
 
     [SerializeField] float move_speed = 25.0f;
-    [SerializeField] float mouse_speed = 0.5f;
+    [SerializeField] float mouse_speed = 5f;
     [SerializeField] float zoom_speed = 50f;
     [SerializeField] float scroll_speed = 5.0f;
 
     bool track_mouse = false;
 
-    float zoom = 10.0f;
-    Vector2 zoomlimit = new Vector2(0.5f, 100f);
+    [SerializeField] float zoom = 10.0f;
+    [SerializeField] Vector2 zoomlimit = new Vector2(2f, 100f);
 
-    void Awake() {
+    void OnEnable() {
         transform = GetComponent<Transform>();
         camera = GetComponent<Camera>();
+        instance = this;
+
+        zoomlimit = Vector2.one;
+        zoom = 1f;
     }
 
     void Update() {
@@ -26,6 +33,27 @@ public class CameraHandler : MonoBehaviour
         MouseMovement();
         ApplyZoom();
         track_mouse = Application.isFocused;
+    }
+
+    public static void AdjustToNetwork(NeuralNetwork network) {
+        float height = 0;
+        float avg = 0;
+        foreach (Layer layer in network.Layers) {
+            height = Math.Max(height, layer.NeuronNum);
+            avg += layer.NeuronNum;
+        }
+        float width = network.Layers.Length - 1;
+        avg /= network.Layers.Length;
+
+        float mul = Visualization.instance.spacing / 2f;
+        height *= mul;
+        width *= mul;
+
+        instance.zoomlimit.x = Math.Max(height/100f, 1f);
+        instance.zoomlimit.y = height;
+        instance.zoom = avg;
+
+        instance.transform.position = new Vector3(width, 0, -10f);
     }
 
     public static bool MouseOnScreen() {
@@ -52,7 +80,7 @@ public class CameraHandler : MonoBehaviour
         if (!MouseOnScreen()) return;
         if (!Input.GetMouseButton(0)) return;
 
-        Vector2 change = zoom / zoomlimit.y * mouse_speed * Input.mousePositionDelta;
+        Vector2 change = mouse_speed * zoom / Screen.height * Input.mousePositionDelta;
 
         transform.position -= (Vector3)change;
     }
@@ -69,8 +97,12 @@ public class CameraHandler : MonoBehaviour
         if (Input.GetKey(KeyCode.LeftControl)) {
             Visualization.ChangeSpace(z / 5f);
         } else {
-            zoom = Mathf.Min(Mathf.Max(zoom + z, zoomlimit[0]), zoomlimit[1]);
+            Vector3 preLoc = camera.ScreenToWorldPoint(Input.mousePosition);
+
+            zoom = Mathf.Clamp(zoom + z, zoomlimit.x, zoomlimit.y);
             camera.orthographicSize = zoom;
+
+            transform.position += preLoc - camera.ScreenToWorldPoint(Input.mousePosition);
         }
     }
 }

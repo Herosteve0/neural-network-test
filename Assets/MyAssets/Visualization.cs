@@ -16,8 +16,13 @@ public class Visualization: MonoBehaviour {
 
     int network_layers;
     int[] network_indices;
+    float?[] NeuronXCache;
+    float?[][] NeuronYCache;
 
-    public float space = 17.5f;
+    public float spacing = 17.5f;
+
+    public bool ShowInfo;
+    public Vector2Int FocusedCell;
 
     void OnEnable() {
         if (instance != null && instance != this) {
@@ -25,6 +30,8 @@ public class Visualization: MonoBehaviour {
             return;
         }
         instance = this;
+        ShowInfo = false;
+        FocusedCell = new Vector2Int(-1, -1);
     }
 
     private void OnDisable() {
@@ -52,6 +59,8 @@ public class Visualization: MonoBehaviour {
                 }
             }
         }
+
+        Refresh();
     }
 
     void Initialize(NeuralNetwork network) {
@@ -61,6 +70,15 @@ public class Visualization: MonoBehaviour {
 
         network_layers = network.Layers.Length;
         network_indices = new int[network_layers];
+            
+        int max = 0;
+        foreach (int i in network_indices) {
+            max = Math.Max(max, i);
+        }
+
+        spacing *= Mathf.Max(Mathf.Sqrt(max), 1f);
+
+        CameraHandler.AdjustToNetwork(Network);
 
         Neurons = new GameObject[network_layers][];
         for (int layer = 0; layer < network_layers; layer++) {
@@ -73,6 +91,18 @@ public class Visualization: MonoBehaviour {
             Connections[layer] = new GameObject[network_indices[layer]][];
             for (int index = 0; index < network.Layers[layer].NeuronNum; index++) {
                 Connections[layer][index] = new GameObject[network_indices[layer + 1]];
+            }
+        }
+
+        NeuronXCache = new float?[network_layers];
+        for (int i = 0; i < network_layers; i++) {
+            NeuronXCache[i] = null;
+        }
+        NeuronYCache = new float?[network_layers][];
+        for (int i = 0; i < network_layers; i++) {
+            NeuronYCache[i] = new float?[network_indices[i]];
+            for (int j = 0; j < network_indices[i]; j++) {
+                NeuronYCache[i][j] = null;
             }
         }
     }
@@ -100,7 +130,7 @@ public class Visualization: MonoBehaviour {
     }
 
     public static void ChangeSpace(float delta) {
-        instance.space = Mathf.Max(instance.space + delta, 10f);
+        instance.spacing = Mathf.Max(instance.spacing + delta, 10f);
         UpdatePosition();
     }
 
@@ -118,9 +148,26 @@ public class Visualization: MonoBehaviour {
         }
     }
 
+    public static void ToggleInfo() { ToggleInfo(!instance.ShowInfo); }
+    public static void ToggleInfo(bool state) {
+        instance.ShowInfo = state;
+        instance.Refresh();
+    }
+
+    public static void Focus(int layer, int index) {
+        if (instance.Network == null) return;
+        if (layer < 0 || layer > instance.network_layers) return;
+        if (index < 0 || index > instance.network_indices[layer]) return;
+
+        Vector2Int v = new Vector2Int(layer, index);
+        if (instance.FocusedCell == v) v = new Vector2Int(-1, -1);
+        instance.FocusedCell = v;
+        instance.Refresh();
+    }
+
     void CreateNeuron(int layer, int index) {
-        if (Neurons.Length < layer) { return; }
-        if (Neurons[layer].Length < index) { return; }
+        if (layer < 0 || layer > network_layers) return;
+        if (index < 0 || index > network_indices[layer]) return;
 
         GameObject go = Instantiate(Neuron_Prefab, transform);
         Neurons[layer][index] = go;
@@ -134,33 +181,31 @@ public class Visualization: MonoBehaviour {
         PositionNeuron(layer, index);
     }
 
-    void PositionNeuron(int layer, int index) {
+    float GetNeuronX(int layer) {
+        if (NeuronXCache[layer] != null) return (float)NeuronXCache[layer];
         float x = layer;
-        float y = (network_indices[layer] + 1) / 2f - index - 1;
-        Neurons[layer][index].transform.position = new Vector2(x, y) * space;
+        for (int i = 0; i < layer; i++) {
+            x += Mathf.Log10(network_indices[i]);
+        }
+        NeuronXCache[layer] = x;
+        return x;
     }
-
-    void RefreshNeuron(int layer, int index) {
-        float activation = Network.Layers[layer].Values[index, 0];
-
-        Neurons[layer][index].transform.GetChild(0).GetComponent<SpriteRenderer>().color = new Color(activation, activation, activation, 1f);
-        Neurons[layer][index].transform.GetChild(1).GetComponent<Text>().color = activation < 0.5f ? Color.white : Color.black;
-        Neurons[layer][index].transform.GetChild(1).GetComponent<Text>().text = activation.ToString("F2");
-        Neurons[layer][index].transform.GetChild(2).GetComponent<Text>().text = Network.Layers[layer].Bias[index, 0].ToString("F1");
+    float GetNeuronY(int layer, int index) {
+        if (NeuronYCache[layer][index] != null) return (float)NeuronYCache[layer][index];
+        float y = (network_indices[layer] - 1) / 2f - index;
+        NeuronYCache[layer][index] = y;
+        return y;
     }
-
-    void RefreshNeuronConnection(int layer, int index, int index_to) {
-        float weight = Network.Layers[layer + 1].Weights[index_to, index];
-
-        Connections[layer][index][index_to].transform.GetChild(0).GetComponent<SpriteRenderer>().color = new Color(Math.Min(weight / 5f, 0f), 0f, Math.Max(weight / 5f, 0f), 1f);
-        Connections[layer][index][index_to].transform.GetChild(1).GetComponent<Text>().text = weight.ToString("F2");
-        Connections[layer][index][index_to].transform.GetChild(1).GetComponent<Text>().color = Color.white;
+    void PositionNeuron(int layer, int index) {
+        float x = GetNeuronX(layer);
+        float y = GetNeuronY(layer, index);
+        Neurons[layer][index].transform.position = new Vector2(x, y) * spacing;
     }
 
     void CreateNeuronConnection(int layer, int index_from, int index_to) {
-        if (Neurons.Length < layer + 1) { return; }
-        if (Neurons[layer].Length < index_from) { return; }
-        if (Neurons[layer + 1].Length < index_to) { return; }
+        if (layer < 0 || layer + 1 > network_layers) return;
+        if (index_from < 0 || index_from > network_indices[layer]) return;
+        if (index_to < 0 || index_to > network_indices[layer + 1]) return;
 
         GameObject go = Instantiate(NeuronConnection_Prefab, transform);
         Connections[layer][index_from][index_to] = go;
@@ -176,17 +221,62 @@ public class Visualization: MonoBehaviour {
     }
 
     void PositionNeuronConnection(int layer, int index_from, int index_to) {
-        float rotation = (network_indices[layer + 1] - network_indices[layer]) / 2f - index_to + index_from;
-        float x = layer + 0.5f;
-        float y = ((network_indices[layer + 1] + network_indices[layer]) / 4f) - ((index_to + index_from) / 2f) - 0.5f;
-        Vector2 center = new Vector2(x, y);
-        float length = Mathf.Sqrt(Mathf.Pow(rotation, 2) + 1);
+        float dx = Mathf.Log10(network_indices[layer]) + 1;
+        float dy = (network_indices[layer + 1] - network_indices[layer]) / 2f - index_to + index_from;
+
+        Vector2 center = (Neurons[layer][index_from].transform.position + Neurons[layer + 1][index_to].transform.position)/2f;
+        float rotation = dy/dx;
+        float length = Mathf.Sqrt(Mathf.Pow(dy, 2) + Mathf.Pow(dx, 2));
 
         Transform body = Connections[layer][index_from][index_to].transform.GetChild(0);
 
-        Connections[layer][index_from][index_to].transform.position = center * space;
+        Connections[layer][index_from][index_to].transform.position = center;
         body.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan(rotation) * 180f / Mathf.PI);
-        body.localScale = new Vector3(length * space, 1f, 1f);
+        body.localScale = new Vector3(length * spacing, 1f, 1f);
+    }
+
+    void RefreshNeuron(int layer, int index) {
+        float activation = Network.Layers[layer].Values[index, 0];
+
+        Color c = new Color(activation, activation, activation, 1f);
+
+        bool focused = (FocusedCell == new Vector2Int(layer, index)) || ((Math.Abs(FocusedCell.x - layer) == 1) && FocusedCell.x != -1);
+        bool state = focused || ShowInfo;
+
+        Neurons[layer][index].transform.GetChild(1).gameObject.SetActive(state);
+        Neurons[layer][index].transform.GetChild(2).gameObject.SetActive(focused);
+        if (state) {
+            Neurons[layer][index].transform.GetChild(1).GetComponent<Text>().color = activation < 0.5f ? Color.white : Color.black;
+            Neurons[layer][index].transform.GetChild(1).GetComponent<Text>().text = activation.ToString("F2");
+
+            if (focused) {
+                Neurons[layer][index].transform.GetChild(2).GetComponent<Text>().text = Network.Layers[layer].Bias[index, 0].ToString("F1");
+                Neurons[layer][index].transform.GetChild(2).GetComponent<Text>().color = Color.white;
+            }
+        }
+
+        if (!focused) c.a = (FocusedCell == new Vector2Int(-1, -1)) ? 1f : 0.5f;
+
+        Neurons[layer][index].transform.GetChild(0).GetComponent<SpriteRenderer>().color = c;
+
+    }
+
+    void RefreshNeuronConnection(int layer, int index, int index_to) {
+        float weight = Network.Layers[layer + 1].Weights[index_to, index];
+
+        Color c = new Color(Math.Min(weight / 5f, 0f), 0f, Math.Max(weight / 5f, 0f), 1f);
+
+        bool focused = (FocusedCell == new Vector2Int(layer + 1, index_to)) || (FocusedCell == new Vector2Int(layer, index));
+
+        Connections[layer][index][index_to].transform.GetChild(1).gameObject.SetActive(focused);
+        if (focused) {
+            Connections[layer][index][index_to].transform.GetChild(1).GetComponent<Text>().text = weight.ToString("F2");
+            Connections[layer][index][index_to].transform.GetChild(1).GetComponent<Text>().color = Color.white;
+        } else {
+            c.a = (FocusedCell == new Vector2Int(-1, -1)) ? 0.75f : 0.4f;
+        }
+
+        Connections[layer][index][index_to].transform.GetChild(0).GetComponent<SpriteRenderer>().color = c;
     }
 
     public void Refresh() {
