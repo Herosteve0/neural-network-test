@@ -61,6 +61,64 @@ public struct Vector {
         r.Append(")");
         return r.ToString();
     }
+
+    public static Vector operator +(Vector A, Vector B) {
+        if (A.Length != B.Length) throw new Exception("Tried to add two Vectors with unequal lengths.");
+
+        Vector R = new Vector(A.Length);
+        for (int i = 0; i < R.Length; i++) {
+            R[i] = A[i] + B[i];
+        }
+
+        return R;
+    }
+
+    public static Vector operator -(Vector A, Vector B) {
+        if (A.Length != B.Length) throw new Exception("Tried to subtract two Vectors with unequal lengths.");
+
+        Vector R = new Vector(A.Length);
+        for (int i = 0; i < R.Length; i++) {
+            R[i] = A[i] - B[i];
+        }
+
+        return R;
+    }
+
+    public static Vector operator *(Vector A, float B) {
+        Vector R = new Vector(A.Length);
+
+        for (int i = 0; i < R.Length; i++) {
+            R[i] = A[i] * scaler;
+        }
+
+        return R;
+    }
+    public static Vector operator *(Matrix A, Vector B) {
+        if (B.Length != A.Columns) throw new Exception("Tried to multiple Matrix and Vector with wrong sizes (Length x Columns).");
+
+        Vector R = new Vector(A.Rows);
+
+        for (int i = 0; i < R.Length; i++) {
+            float v = 0;
+            for (int k = 0; k < A.Columns; k++) {
+                v += A[i, k] * B[k];
+            }
+            R[i] = v;
+        }
+
+        return R;
+    }
+
+    public Vector DotProduct(Vector A) {
+        if (Length != A.Length) throw new Exception("Tried to calculate dot product of two Vectors with unequal lengths.");
+
+        Vector R = new Vector(A.Length);
+        for (int i = 0; i < R.Length; i++) {
+            R[i] = this[i] * A[i];
+        }
+
+        return R;
+    }
 }
 
 public struct Matrix {
@@ -105,6 +163,14 @@ public struct Matrix {
             for (int j = 0;j < n;j++) {
                 r[i, j] = 0;
             }
+        }
+        return r;
+    }
+
+    public static Matrix VectorSingleValue(int length, int index) {
+        Matrix r = new Matrix(length, 1);
+        for (int i = 0; i < length; i++) {
+            r[i, 0] = (i == index) ? 1 : 0;
         }
         return r;
     }
@@ -184,6 +250,18 @@ public struct Matrix {
 
         return R;
     }
+    public static Matrix operator *(Matrix A, float scaler) {
+        Matrix R = new Matrix(A.Rows, A.Columns);
+
+        for (int i = 0; i < R.Rows; i++) {
+            for (int j = 0; j < R.Columns; j++) {
+                v += A[i, j] * scaler;
+                R[i, j] = v;
+            }
+        }
+
+        return R;
+    }
 
     public Matrix ElementMultiply(Matrix A) {
         if (A.Rows != Rows) throw new Exception("Tried to element-wise multiply unequal Matrices (Rows).");
@@ -213,24 +291,5 @@ public struct Matrix {
         }
 
         return R;
-    }
-}
-
-struct Functions {
-    public static float Sigmoid(float value) {
-        float k = (float) Math.Exp(-value);
-        return 1 / (1 + k);
-    }
-    
-    // f(x) * f(-x)
-    // f(x) * (1 - f(x))
-    // e^(-x) / (1 + e^(-x))^2
-    public static float SigmoidDerivative(float value) {
-        float k = (float) Math.Exp(-value);
-        return k / ((1 + k) * (1 + k));
-    }
-
-    public static float Loss(float cost, float value) {
-        return (cost - value) * (cost - value);
     }
 }
