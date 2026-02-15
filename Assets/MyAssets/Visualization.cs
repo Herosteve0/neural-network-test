@@ -3,6 +3,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
 
+using NeuralNetworkSystem;
+
 public class Visualization: MonoBehaviour {
 
     [SerializeField] GameObject Neuron_Prefab;
@@ -68,7 +70,7 @@ public class Visualization: MonoBehaviour {
         Clear();
         Network = network;
 
-        network_layers = network.Layers.Length;
+        network_layers = network.LayerAmount;
         network_indices = new int[network_layers];
             
         int max = 0;
@@ -236,7 +238,7 @@ public class Visualization: MonoBehaviour {
     }
 
     void RefreshNeuron(int layer, int index) {
-        float activation = Network.Layers[layer].Values[index, 0];
+        float activation = Network.Layers[layer].Values[index];
 
         Color c = new Color(activation, activation, activation, 1f);
 
@@ -250,7 +252,7 @@ public class Visualization: MonoBehaviour {
             Neurons[layer][index].transform.GetChild(1).GetComponent<Text>().text = activation.ToString("F2");
 
             if (focused) {
-                Neurons[layer][index].transform.GetChild(2).GetComponent<Text>().text = Network.Layers[layer].Bias[index, 0].ToString("F1");
+                Neurons[layer][index].transform.GetChild(2).GetComponent<Text>().text = Network.Layers[layer].Bias[index].ToString("F1");
                 Neurons[layer][index].transform.GetChild(2).GetComponent<Text>().color = Color.white;
             }
         }

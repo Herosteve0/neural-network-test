@@ -1,25 +1,28 @@
 using System;
 using System.Text;
+using UnityEngine.UIElements;
 
-namespace NeuralNetwork {
+namespace NeuralNetworkSystem {
     public struct Data {
         public Data(Vector data, int label) {
             this.data = data;
             this.label = label;
         }
 
-        Vector data { get; }
-        int label { get; }
+        public Vector data { get; }
+        public int label { get; }
     }
 
     public class NeuralNetworkTrainer {
-        public NeuralNetworkTrainer(NeuralNetwork network, Data[] data) {
+        public NeuralNetworkTrainer(NeuralNetwork network, Data[] data, float learning_rate) {
             Network = network;
             TrainingData = data;
+            this.learning_rate = learning_rate;
         }
 
         NeuralNetwork Network { get; }
         public Data[] TrainingData { get; }
+        public float learning_rate { get; }
 
 
         public static float Sigmoid(float value) {
@@ -36,8 +39,8 @@ namespace NeuralNetwork {
         }
 
         public static Vector Loss(Vector V, Vector Y) {
-            Matrix Cost = V - Y;
-            return Cost.ElementMultiply(Cost);
+            Vector Cost = V - Y;
+            return Cost.DotProduct(Cost);
         }
 
         public static Vector LossDerivative(Vector V, Vector Y) {
@@ -45,32 +48,37 @@ namespace NeuralNetwork {
         }
 
         public void SingleExampleTraining(int index) {
-            if (index < 0 || index > TrainingData.Length) return
+            if (index < 0 || index > TrainingData.Length) return;
             Network.Calculate(TrainingData[index].data); // all layers of the network have the values we want (inupt, value, activation)
 
-            Vector Y = Vector.SingleValue(Network.LayerLength[Network.LayerAmount - 1])
-            Vector Cost = Loss(Network.Layers[Network.LayerAmount - 1], Y);
+            Vector Y = Vector.SingleValue(Network.LayerLength[Network.LayerAmount - 1], TrainingData[index].label);
+            Vector Cost = Loss(Network.Layers[Network.LayerAmount - 1].Activation, Y);
 
-            Vector[] Delta = new Matrix[Network.LayerAmount - 1];
+            Vector[] Delta = new Vector[Network.LayerAmount - 1];
             Matrix[] WeightDelta = new Matrix[Network.LayerAmount - 1];
-            Vector[] BiasDelta = new Matrix[Network.LayerAmount - 1];
+            Vector[] BiasDelta = new Vector[Network.LayerAmount - 1];
 
             Delta[Network.LayerAmount - 1] = LossDerivative(
-                Network.Layers[Network.LayerAmount - 1], Y
+                Network.Layers[Network.LayerAmount - 1].Activation, Y
                 ).DotProduct(
-                Network.Layers[NeuralNetwork.LayerAmount - 1].Values.Map(SigmoidDerivative)
+                Network.Layers[Network.LayerAmount - 1].Values.Map(SigmoidDerivative)
                 );
 
             for (int i = Network.LayerAmount - 1; i > 0; i--) {
                 Delta[i - 1] = (Network.Layers[i].Weights.Transpose() * Delta[i]).DotProduct(Network.Layers[i - 1].Values.Map(SigmoidDerivative));
 
-                WeightDelta[i] = Delta[i] * Network.Layers[i - 1].Activations.Transpose();
+                WeightDelta[i] = Delta[i] * Network.Layers[i - 1].Activation.Transpose();
                 BiasDelta[i] = Delta[i];
+            }
+
+            for (int i = 1; i < Network.LayerAmount; i++) {
+                Network.Layers[i].Weights -= WeightDelta[i] * learning_rate;
+                Network.Layers[i].Bias -= BiasDelta[i] * learning_rate;
             }
         }
 
         public void FullTraining() {
-            for (int i = 0; i < TrainingData.data.Length; i++) {
+            for (int i = 0; i < TrainingData.Length; i++) {
                 SingleExampleTraining(i);
             }
         }

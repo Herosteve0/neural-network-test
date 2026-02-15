@@ -1,10 +1,12 @@
 using UnityEngine;
-using UnityEngine.EventSystems;
+
+using NeuralNetworkSystem;
 using System.Collections.Generic;
 
 public class ProgramHandler : MonoBehaviour {
 
     NeuralNetwork Network;
+    NeuralNetworkTrainer Trainer;
 
     private void OnEnable() {
         CreateNetwork();
@@ -35,13 +37,37 @@ public class ProgramHandler : MonoBehaviour {
         Visualization.Focus(vars.layer, vars.index);
     }
 
-    void CreateNetwork() {
-        //int[] layers = { 5, 3, 3, 4 };
-        int[] layers = { 784, 16, 16, 10 };
-        Network = new NeuralNetwork(layers);
-    }
-
     void RefreshNetwork() {
         Visualization.Visualize(Network);
+    }
+
+    void CreateNetwork() {
+        int[] layers = { 3, 2, 4 };
+        //int[] layers = { 784, 16, 16, 10 };
+        Network = new NeuralNetwork(layers);
+
+        List<Data> data = new List<Data>();
+
+        int q = 1000;
+        for (int x = -1 * q; x <= 1 * q; x++) {
+            for (int y = -1 * q; y <= 1 * q; y++) {
+                for (int z = -1 * q; z <= 1 * q; z++) {
+                    int label;
+                    if (((x + y + z) > 0) && (x > 0)) label = 0;
+                    if (((x + y + z) > 0) && (x <= 0)) label = 1;
+                    if (((x + y + z) <= 0) && (y > 0)) label = 2;
+                    else label = 3;
+
+                    Vector value = new Vector(3);
+                    value[0] = x;
+                    value[1] = y;
+                    value[2] = z;
+
+                    data.Add(new Data(value, label));
+                }
+            }
+        }
+
+        Trainer = new NeuralNetworkTrainer(Network, data.ToArray(), 0.001f);
     }
 }

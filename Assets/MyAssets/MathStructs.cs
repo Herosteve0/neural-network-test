@@ -45,8 +45,8 @@ public struct Vector {
     }
 
     public static Vector SingleValue(int length, int index) {
-        Vector R = Vector.Zero(length);
-        R[index] = 1;
+        Vector R = new Vector(length);
+        for (int i = 0; i < length; i++) R[i] = (i == index) ? 1 : 0;
         return R;
     }
 
@@ -61,6 +61,27 @@ public struct Vector {
         r.Append(")");
         return r.ToString();
     }
+
+
+    public Matrix Transpose() {
+        Matrix R = new Matrix(1, Length);
+
+        for (int i = 0; i < Length; i++) {
+            R[0, i] = this[i];
+        }
+
+        return R;
+    }
+
+    public Vector Map(Func<float, float> f) {
+        Vector R = new Vector(Length);
+
+        for (int i = 0; i < Data.Length; i++) {
+            R.Data[i] = f(Data[i]);
+        }
+        return R;
+    }
+
 
     public static Vector operator +(Vector A, Vector B) {
         if (A.Length != B.Length) throw new Exception("Tried to add two Vectors with unequal lengths.");
@@ -84,7 +105,7 @@ public struct Vector {
         return R;
     }
 
-    public static Vector operator *(Vector A, float B) {
+    public static Vector operator *(Vector A, float scaler) {
         Vector R = new Vector(A.Length);
 
         for (int i = 0; i < R.Length; i++) {
@@ -233,6 +254,21 @@ public struct Matrix {
         return R;
     }
 
+    public static Matrix operator -(Matrix A, Matrix B) {
+        if (A.Rows != B.Rows) throw new Exception("Tried to add unequal Matrices (Rows).");
+        if (A.Columns != B.Columns) throw new Exception("Tried to add unequal Matrices (Columns).");
+
+        Matrix R = new Matrix(A.Rows, A.Columns);
+
+        for (int i = 0; i < A.Rows; i++) { 
+            for (int j = 0; j < A.Columns; j++) {
+                R[i, j] = A[i, j] - B[i, j]; 
+            }
+        }
+
+        return R;
+    }
+
     public static Matrix operator *(Matrix A, Matrix B) {
         if (B.Rows != A.Columns) throw new Exception("Tried to multiple two Matrices with wrong sizes (Rows x Columns).");
 
@@ -250,14 +286,24 @@ public struct Matrix {
 
         return R;
     }
-    public static Matrix operator *(Matrix A, float scaler) {
-        Matrix R = new Matrix(A.Rows, A.Columns);
+    public static Matrix operator *(Vector A, Matrix B) {
+        if (B.Rows != 1) throw new Exception("Tried to multiple Vector and Matrix with wrong sizes (Rows x Columns = 1).");
+
+        Matrix R = new Matrix(A.Length, B.Columns);
 
         for (int i = 0; i < R.Rows; i++) {
             for (int j = 0; j < R.Columns; j++) {
-                v += A[i, j] * scaler;
-                R[i, j] = v;
+                R[i, j] = A[i] * B[0, j];
             }
+        }
+
+        return R;
+    }
+    public static Matrix operator *(Matrix A, float scaler) {
+        Matrix R = new Matrix(A.Rows, A.Columns);
+
+        for (int i = 0; i < R.Data.Length; i++) {
+            R.Data[i] = A.Data[i] * scaler;
         }
 
         return R;

@@ -1,6 +1,6 @@
 using System;
 
-namespace NeuralNetwork {
+namespace NeuralNetworkSystem {
     public class Layer {
         public Layer(int size) {
             NeuronNum = size;
@@ -13,17 +13,17 @@ namespace NeuralNetwork {
         }
 
         public int NeuronNum { get; }
-        public Vector Bias { get; private set; }
-        public Matrix Weights { get; private set; }
+        public Vector Bias { get; set; }
+        public Matrix Weights { get; set; }
 
-        public Vector Inputs { get; private set; }
-        public Vector Values { get; private set; }
-        public Vector Activation { get; private set; }
+        public Vector Inputs { get; protected set; }
+        public Vector Values { get; protected set; }
+        public Vector Activation { get; protected set; }
 
         public virtual Vector Forward(Vector input) {
             Inputs = input;
             Values = Weights * input + Bias;
-            Activation = Values.Map(Functions.Sigmoid);
+            Activation = Values.Map(NeuralNetworkTrainer.Sigmoid);
             return Values;
         }
     }
@@ -41,10 +41,11 @@ namespace NeuralNetwork {
         public NeuralNetwork(int[] layers) {
             LayerAmount = layers.Length;
             Layers = new Layer[LayerAmount];
-            LayerLength = layers;
+            LayerLength = new int[LayerAmount];
 
             Layers[0] = new InputLayer(layers[0]);
             for (int i = 1; i < LayerAmount; i++) {
+                LayerAmount = layers[i];
                 Layers[i] = new Layer(layers[i], Layers[i - 1]);
             }
         }
@@ -53,13 +54,13 @@ namespace NeuralNetwork {
         public int[] LayerLength { get; }
         public Layer[] Layers { get; }
 
-        public Matrix Calculate(Matrix input) {
+        public Vector Calculate(Vector input) {
             Layers[0].Forward(input);
             for (int i = 1; i < LayerAmount; i++) {
                 Layers[i].Forward(Layers[i-1].Activation);
             }
 
-            return Layers[LayerAmount - 1];
+            return Layers[LayerAmount - 1].Activation;
         }
     }
 }
