@@ -2,14 +2,18 @@ using UnityEngine;
 
 using NeuralNetworkSystem;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 public class ProgramHandler : MonoBehaviour {
-
+    
     NeuralNetwork Network;
     NeuralNetworkTrainer Trainer;
 
+    [SerializeField] bool state = false;
+    int training_index;
+
     private void OnEnable() {
-        CreateNetwork();
+        CreateNetwork(state);
     }
 
     void Update() {
@@ -17,6 +21,17 @@ public class ProgramHandler : MonoBehaviour {
             if (Network != null) RefreshNetwork();
         }
         if (Input.GetKeyDown(KeyCode.Tab)) Visualization.ToggleInfo();
+        if (Input.GetKeyDown(KeyCode.M)) Trainer.MNIST_Training(100);
+        //if (Input.GetKeyDown(KeyCode.Space)) {
+        //    if (Input.GetKey(KeyCode.LeftShift)) Test(true);
+        //}
+        if (Input.GetKeyDown(KeyCode.N)) LargeTest();
+        if (Input.GetKeyDown(KeyCode.B)) {
+            if (Input.GetKey(KeyCode.LeftShift)) Visualization.instance.WeightDiffToImage();
+            else Visualization.instance.WeightToImage();
+        }
+
+
 
         SelectCell();
     }
@@ -41,33 +56,31 @@ public class ProgramHandler : MonoBehaviour {
         Visualization.Visualize(Network);
     }
 
-    void CreateNetwork() {
-        int[] layers = { 3, 2, 4 };
-        //int[] layers = { 784, 16, 16, 10 };
-        Network = new NeuralNetwork(layers);
+    async Task LargeTest() {
+        MNISTDatabase database = new MNISTDatabase("Assets/StreamingAssets/MNIST/t10k-images.idx3-ubyte", "Assets/StreamingAssets/MNIST/t10k-labels.idx1-ubyte");
 
-        List<Data> data = new List<Data>();
-
-        int q = 1000;
-        for (int x = -1 * q; x <= 1 * q; x++) {
-            for (int y = -1 * q; y <= 1 * q; y++) {
-                for (int z = -1 * q; z <= 1 * q; z++) {
-                    int label;
-                    if (((x + y + z) > 0) && (x > 0)) label = 0;
-                    if (((x + y + z) > 0) && (x <= 0)) label = 1;
-                    if (((x + y + z) <= 0) && (y > 0)) label = 2;
-                    else label = 3;
-
-                    Vector value = new Vector(3);
-                    value[0] = x;
-                    value[1] = y;
-                    value[2] = z;
-
-                    data.Add(new Data(value, label));
-                }
-            }
+        Debug.Log($"Started testing on {database.Size} test samples.");
+        int a = 0;
+        for (int i = 0; i < database.Size; i += 1) {
+            Data TestingData = database.ReadBatch(1)[0];
+            Vector result = Network.Calculate(TestingData.data);
+            if (result.MaxIndex() == TestingData.label) a++;
+            if (i % 2500 == 0) await Task.Delay(1);
         }
+        Debug.Log($"Testing complete with {(double)a / database.Size * 100}% accuracy. [{a}/{database.Size}]");
+    }
 
-        Trainer = new NeuralNetworkTrainer(Network, data.ToArray(), 0.001f);
+
+
+    void CreateNetwork(bool meow) {
+        if (meow) {
+            int[] layers = { 3, 2, 4 };
+            Network = new NeuralNetwork(layers);
+        } else {
+            int[] layers = { 784, 16, 16, 10 };
+            Network = new NeuralNetwork(layers);
+
+            Trainer = new NeuralNetworkTrainer(Network, 0.1f);
+        }
     }
 }

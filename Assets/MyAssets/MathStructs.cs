@@ -6,6 +6,13 @@ public struct Vector {
         Length = length;
         Data = new float[length];
     }
+    public Vector(float[] values) {
+        Length = values.Length;
+        Data = new float[Length];
+        for (int i = 0; i < Length; i++) {
+            Data[i] = values[i];
+        }
+    }
     public Vector(Matrix matrix) {
         if (matrix.Rows > 1 && matrix.Columns > 1) throw new Exception("Tried converting 2D Matrix into a Vector! (Rows and Columns are both greater than 1.)");
 
@@ -44,9 +51,15 @@ public struct Vector {
         return R;
     }
 
-    public static Vector SingleValue(int length, int index) {
+    public static Vector SingleValue(int length, int index, float value = 1f) {
         Vector R = new Vector(length);
-        for (int i = 0; i < length; i++) R[i] = (i == index) ? 1 : 0;
+        for (int i = 0; i < length; i++) R[i] = (i == index) ? value : 0;
+        return R;
+    }
+
+    public static Vector Random(int length, float min = 0f, float max = 1f) {
+        Vector R = new Vector(length);
+        for (int i = 0; i < length; i++) R[i] = UnityEngine.Random.Range(min, max);
         return R;
     }
 
@@ -56,7 +69,7 @@ public struct Vector {
         r.Append("(");
         for (int i = 0; i < Length; i++) {
             r.Append(Data[i].ToString());
-            if (i < Length) r.Append(", ");
+            if (i < Length - 1) r.Append(", ");
         }
         r.Append(")");
         return r.ToString();
@@ -79,6 +92,23 @@ public struct Vector {
         for (int i = 0; i < Data.Length; i++) {
             R.Data[i] = f(Data[i]);
         }
+        return R;
+    }
+
+    public Vector SoftMax() {
+        Vector R = new Vector(Length);
+
+        float max = Max();
+
+        float sum = 0f;
+        for (int i = 0; i < Length; i++) {
+            sum += UnityEngine.Mathf.Exp(Data[i] - max);
+        }
+
+        for (int i = 0; i < Length; i++) {
+            R[i] = UnityEngine.Mathf.Exp(Data[i] - max) / sum;
+        }
+
         return R;
     }
 
@@ -130,6 +160,16 @@ public struct Vector {
         return R;
     }
 
+    public static Vector operator /(Vector A, float scaler) {
+        Vector R = new Vector(A.Length);
+
+        for (int i = 0; i < R.Length; i++) {
+            R[i] = A[i] / scaler;
+        }
+
+        return R;
+    }
+
     public Vector DotProduct(Vector A) {
         if (Length != A.Length) throw new Exception("Tried to calculate dot product of two Vectors with unequal lengths.");
 
@@ -140,6 +180,36 @@ public struct Vector {
 
         return R;
     }
+
+    public float Max() {
+        float r = Data[0];
+        for (int i = 1; i < Data.Length; i++) {
+            r = Math.Max(r, Data[i]);
+        }
+        return r;
+    }
+    public float Min() {
+        float r = Data[0];
+        for (int i = 1; i < Data.Length; i++) {
+            r = Math.Min(r, Data[i]);
+        }
+        return r;
+    }
+
+    public int MaxIndex() {
+        int r = 0;
+        for (int i = 1; i < Data.Length; i++) {
+            if (Data[r] < Data[i]) r = i;
+        }
+        return r;
+    }
+    public float MinIndex() {
+        int r = 0;
+        for (int i = 1; i < Data.Length; i++) {
+            if (Data[r] > Data[i]) r = i;
+        }
+        return r;
+    }
 }
 
 public struct Matrix {
@@ -147,6 +217,9 @@ public struct Matrix {
         Rows = rows;
         Columns = columns;
         Data = new float[rows * columns];
+        for (int i = 0; i < Data.Length; i++) {
+            Data[i] = 0.0f;
+        }
     }
     public Matrix(Vector v) {
         Rows = v.Length;
@@ -188,12 +261,14 @@ public struct Matrix {
         return r;
     }
 
-    public static Matrix VectorSingleValue(int length, int index) {
-        Matrix r = new Matrix(length, 1);
-        for (int i = 0; i < length; i++) {
-            r[i, 0] = (i == index) ? 1 : 0;
+    public static Matrix Random(int rows, int cols, float min = 0f, float max = 1f) {
+        Matrix R = new Matrix(rows, cols);
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                R[i, j] = UnityEngine.Random.Range(min, max);
+            }
         }
-        return r;
+        return R;
     }
 
     public override string ToString() {
@@ -304,6 +379,16 @@ public struct Matrix {
 
         for (int i = 0; i < R.Data.Length; i++) {
             R.Data[i] = A.Data[i] * scaler;
+        }
+
+        return R;
+    }
+
+    public static Matrix operator /(Matrix A, float scaler) {
+        Matrix R = new Matrix(A.Rows, A.Columns);
+
+        for (int i = 0; i < R.Data.Length; i++) {
+            R.Data[i] = A.Data[i] / scaler;
         }
 
         return R;

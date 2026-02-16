@@ -50,7 +50,7 @@ public class CameraHandler : MonoBehaviour
         height *= mul;
         width *= mul;
 
-        instance.zoomlimit.x = Math.Max(height/100f, 1f);
+        instance.zoomlimit.x = Math.Max(Mathf.Log10(height), 1f);
         instance.zoomlimit.y = height;
         instance.zoom = avg;
 

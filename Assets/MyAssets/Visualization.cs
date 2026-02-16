@@ -1,15 +1,16 @@
+using NeuralNetworkSystem;
 using System;
+using UnityEditor.Rendering;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.UIElements;
-
-using NeuralNetworkSystem;
 
 public class Visualization: MonoBehaviour {
 
     [SerializeField] GameObject Neuron_Prefab;
     [SerializeField] GameObject NeuronConnection_Prefab;
     public static Visualization instance;
+    public Transform NeuronStorage;
+    public Transform NeuronConnectionStorage;
 
     NeuralNetwork Network;
 
@@ -34,6 +35,14 @@ public class Visualization: MonoBehaviour {
         instance = this;
         ShowInfo = false;
         FocusedCell = new Vector2Int(-1, -1);
+
+        if (NeuronStorage != null) { Destroy(NeuronStorage.gameObject); }
+        NeuronStorage = new GameObject("NeuronStorage").transform;
+        NeuronStorage.SetParent(transform, false);
+
+        if (NeuronConnectionStorage != null) { Destroy(NeuronConnectionStorage.gameObject); }
+        NeuronConnectionStorage = new GameObject("NeuronConnectionStorage").transform;
+        NeuronConnectionStorage.SetParent(transform, false);
     }
 
     private void OnDisable() {
@@ -72,6 +81,9 @@ public class Visualization: MonoBehaviour {
 
         network_layers = network.LayerAmount;
         network_indices = new int[network_layers];
+        for (int i = 0; i < network_layers; i++) {
+            network_indices[i] = network.LayerLength[i];
+        }
             
         int max = 0;
         foreach (int i in network_indices) {
@@ -84,7 +96,6 @@ public class Visualization: MonoBehaviour {
 
         Neurons = new GameObject[network_layers][];
         for (int layer = 0; layer < network_layers; layer++) {
-            network_indices[layer] = network.Layers[layer].NeuronNum;
             Neurons[layer] = new GameObject[network.Layers[layer].NeuronNum];
         }
 
@@ -171,7 +182,7 @@ public class Visualization: MonoBehaviour {
         if (layer < 0 || layer > network_layers) return;
         if (index < 0 || index > network_indices[layer]) return;
 
-        GameObject go = Instantiate(Neuron_Prefab, transform);
+        GameObject go = Instantiate(Neuron_Prefab, NeuronStorage);
         Neurons[layer][index] = go;
         go.name = "Neuron [" + layer.ToString() + ", " + index.ToString() + "]";
 
@@ -209,7 +220,7 @@ public class Visualization: MonoBehaviour {
         if (index_from < 0 || index_from > network_indices[layer]) return;
         if (index_to < 0 || index_to > network_indices[layer + 1]) return;
 
-        GameObject go = Instantiate(NeuronConnection_Prefab, transform);
+        GameObject go = Instantiate(NeuronConnection_Prefab, NeuronConnectionStorage);
         Connections[layer][index_from][index_to] = go;
         go.name = "Neuron Connection [" + layer.ToString() + ", " + index_from.ToString() + "] -> [" + (layer + 1).ToString() + ", " + index_to.ToString() + "]";
         
@@ -238,7 +249,7 @@ public class Visualization: MonoBehaviour {
     }
 
     void RefreshNeuron(int layer, int index) {
-        float activation = Network.Layers[layer].Values[index];
+        float activation = Network.Layers[layer].Activation[index];
 
         Color c = new Color(activation, activation, activation, 1f);
 
@@ -266,13 +277,13 @@ public class Visualization: MonoBehaviour {
     void RefreshNeuronConnection(int layer, int index, int index_to) {
         float weight = Network.Layers[layer + 1].Weights[index_to, index];
 
-        Color c = new Color(Math.Min(weight / 5f, 0f), 0f, Math.Max(weight / 5f, 0f), 1f);
+        Color c = new Color(Math.Max(weight / -2f, 0f), 0f, Math.Max(weight / 2f, 0f), 1f);
 
         bool focused = (FocusedCell == new Vector2Int(layer + 1, index_to)) || (FocusedCell == new Vector2Int(layer, index));
 
         Connections[layer][index][index_to].transform.GetChild(1).gameObject.SetActive(focused);
         if (focused) {
-            Connections[layer][index][index_to].transform.GetChild(1).GetComponent<Text>().text = weight.ToString("F2");
+            Connections[layer][index][index_to].transform.GetChild(1).GetComponent<Text>().text = weight.ToString("F4");
             Connections[layer][index][index_to].transform.GetChild(1).GetComponent<Text>().color = Color.white;
         } else {
             c.a = (FocusedCell == new Vector2Int(-1, -1)) ? 0.75f : 0.4f;
@@ -292,6 +303,68 @@ public class Visualization: MonoBehaviour {
                     RefreshNeuronConnection(layer, index, index_to);
                 }
             }
+        }
+    }
+
+
+    public GameObject[] images;
+
+    public void WeightToImage() {
+        Texture2D[] texture = new Texture2D[Network.LayerLength[1]];
+
+        for (int i = 0; i < images.Length; i++) {
+            Destroy(images[i]);
+        }
+
+        images = new GameObject[texture.Length];
+
+        for (int k = 0; k < texture.Length; k++) {
+            texture[k] = new Texture2D(28, 28);
+            for (int i = 0; i < 28; i++) {
+                for (int j = 0; j < 28; j++) {
+                    float weight = Network.Layers[1].Weights[k, 28 * i + j];
+                    Color c = new Color(Math.Max(weight / -1f, 0f), 0f, Math.Max(weight / 1f, 0f), 1f);
+                    texture[k].SetPixel(j, 27 - i, c);
+                }
+            }
+            texture[k].filterMode = FilterMode.Point;
+            texture[k].Apply();
+            images[k] = new GameObject($"Image {k}");
+            images[k].transform.SetParent(transform, false);
+            images[k].AddComponent<RawImage>().texture = texture[k];
+            images[k].GetComponent<RectTransform>().sizeDelta = new Vector2(28, 28);
+        }
+    }
+
+    public void WeightDiffToImage() {
+        Texture2D[] texture = new Texture2D[Network.LayerLength[1]];
+
+        for (int k = 0; k < texture.Length; k++) {
+            texture[k] = new Texture2D(28, 28);
+            for (int i = 0; i < 28; i++) {
+                for (int j = 0; j < 28; j++) {
+                    float weight = Network.Layers[1].Weights[k, 28 * i + j];
+                    Color c = new Color(Math.Max(weight / -1f, 0f), 0f, Math.Max(weight / 1f, 0f), 1f);
+                    c -= ((Texture2D)images[k].GetComponent<RawImage>().texture).GetPixel(j, 27-i);
+                    c.a = 1f;
+                    texture[k].SetPixel(j, 27 - i, c);
+                }
+            }
+            texture[k].filterMode = FilterMode.Point;
+            texture[k].Apply();
+        }
+
+        for (int i = 0; i < images.Length; i++) {
+            Destroy(images[i]);
+        }
+
+        images = new GameObject[texture.Length];
+
+        for (int i = 0; i < images.Length; i++) {
+            images[i] = new GameObject($"Image {i}");
+            images[i].transform.SetParent(transform, false);
+            images[i].AddComponent<RawImage>().texture = texture[i];
+            images[i].GetComponent<RectTransform>().sizeDelta = new Vector2(28, 28);
         }
     }
 }
