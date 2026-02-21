@@ -1,7 +1,9 @@
 using System;
 using System.Diagnostics;
+using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
+using NUnit.Framework;
 using UnityEngine.UIElements;
 
 namespace NeuralNetworkSystem {
@@ -23,25 +25,50 @@ namespace NeuralNetworkSystem {
 
         public Data[] Data { get; }
         public int Size { get; }
+
+        public DataBatch GetSmallBatch(int index, int size) {
+            Data[] newdata = new Data[size];
+            Array.Copy(Data, index, newdata, 0, size);
+            return new DataBatch(newdata);
+        }
+
+        public void Shuffle() {
+            for (int i = Size - 1; i > 0; i--) {
+                int r = UnityEngine.Random.Range(0, i + 1);
+                (Data[i], Data[r]) = (Data[r], Data[i]);
+            }
+        }
     }
 
     public class NeuralNetworkTrainer {
-        public NeuralNetworkTrainer(NeuralNetwork network, float learning_rate, Func<int, Data> training_function, int training_amount) {
+        public NeuralNetworkTrainer(NeuralNetwork network, float learning_rate = 0.075f, int batchSize = 100) {
             Network = network;
-            TrainingFunction = training_function;
-            TrainingExamplesCount = training_amount;
-            this.learning_rate = learning_rate;
-        }
-        public NeuralNetworkTrainer(NeuralNetwork network, float learning_rate) {
-            Network = network;
+            this.batchSize = batchSize;
             this.learning_rate = learning_rate;
         }
 
         NeuralNetwork Network { get; }
-        public Func<int, Data> TrainingFunction { get; }
-        public int TrainingExamplesCount { get; }
         public float learning_rate { get; }
+        public int batchSize { get; }
 
+
+        public static Vector NormalizeInput(Vector v) {
+            float mean = 0.1307f;
+            float std = 0.3081f;
+
+            Vector R = new Vector(v.Length);
+            for (int i = 0; i < v.Length; i++) R[i] = (v[i] - mean) / std;
+            return R;
+        }
+
+
+        public static float ReLU(float value) {
+            return value > 0 ? value : 0;
+        }
+
+        public static float ReLUDerivative(float value) {
+            return value > 0 ? 1 : 0;
+        }
 
         public static float Sigmoid(float value) {
             float k = (float)Math.Exp(-value);
@@ -68,8 +95,9 @@ namespace NeuralNetworkSystem {
             return (V[label] - 1) * 2;
         }
 
-        public void TrainingCalculations(Data TrainingData, ref Vector[] Delta, ref Matrix[] WeightDelta, ref Vector[] BiasDelta) {
-            Network.Calculate(TrainingData.data); // all layers of the network have the values we want (inupt, value, activation)
+        public void TrainingCalculations(Data TrainingData, ref Matrix[] WeightDelta, ref Vector[] BiasDelta) {
+            Vector input = NormalizeInput(TrainingData.data);
+            Network.Calculate(input); // all layers of the network have the values we want (inupt, value, activation)
 
             int length = Network.LayerAmount - 1;
 
@@ -77,21 +105,16 @@ namespace NeuralNetworkSystem {
             float Loss = SoftMaxLoss(Network.Layers[length].Activation, TrainingData.label);
             Vector Cost = Vector.SingleValue(Network.LayerLength[length] , TrainingData.label, Loss);
 
-            for (int i = length - 1; i >= 0; i--) {
-                int l = i + 1;
-                if (i == length - 1) {
-                    //Delta[i] = LossDerivative(
-                    //    Network.Layers[Network.LayerAmount - 1].Activation, Y
-                    //    ).DotProduct(
-                    //    Network.Layers[Network.LayerAmount - 1].Values.Map(SigmoidDerivative)
-                    //    );
-                    Delta[i] = Network.Layers[l].Activation - Y;
-                } else {
-                    Delta[i] = (Network.Layers[l + 1].Weights.Transpose() * Delta[l]).DotProduct(Network.Layers[l].Values.Map(SigmoidDerivative));
-                }
 
-                WeightDelta[i] += Delta[i] * Network.Layers[i].Activation.Transpose();
-                BiasDelta[i] += Delta[i];
+            Vector tmp;
+
+            int simd_width = Vector<float>.Count;
+
+            for (int i = length; i > 0; i--) {
+                Network.Layers[i].Backward(i == length ? Y : Network.Layers[i+1].Values, Network.Layers[i].Delta);
+
+                int j = 0;
+                for (; j <= Network.Layers[i].Activation.Transpose())
             }
         }
 
@@ -133,19 +156,48 @@ namespace NeuralNetworkSystem {
             }
         }
 
-        public async Task MNIST_Training(int batchSize) {
+        public async Task MNIST_Training() {
             MNISTDatabase database = new MNISTDatabase("Assets/StreamingAssets/MNIST/train-images.idx3-ubyte", "Assets/StreamingAssets/MNIST/train-labels.idx1-ubyte");
 
             UnityEngine.Debug.Log($"Started training on {database.Size} examples.");
+            int counter = 0;
             for (int i = 0; i < database.Size; i += batchSize) {
                 DataBatch batch = new DataBatch(database.ReadBatch(batchSize));
                 BatchTraining(batch);
-                UnityEngine.Debug.Log($"Training is {100 * (double)i / database.Size:F2}% Complete [{i}/{database.Size}]");
-                await Task.Delay(1);
+                counter += batchSize;
+                if (counter > 100) {
+                    UnityEngine.Debug.Log($"Training is {100 * (double)i / database.Size:F2}% Complete [{i}/{database.Size}]");
+                    await Task.Delay(1);
+                    counter = 0;
+                }
             }
             UnityEngine.Debug.Log($"Training Complete.");
 
             database.CloseLoad();
+        }
+
+        public async Task MNIST_RandomTraining(int loops) {
+            DataBatch training_data = new DataBatch(MNISTDatabase.LoadAllTrainingData());
+            int size = training_data.Size * loops;
+
+            UnityEngine.Debug.Log($"Started training on {size} examples.");
+            int delay_counter = 0;
+            int counter = 0;
+            for (int cycle = 0; cycle < loops; cycle++) {
+                training_data.Shuffle();
+                for (int i = 0; i < training_data.Size; i += batchSize) {
+                    DataBatch batch = training_data.GetSmallBatch(i, batchSize);
+                    BatchTraining(batch);
+                    counter += batchSize;
+                    delay_counter += batchSize;
+                    if (delay_counter > 100) {
+                        UnityEngine.Debug.Log($"Training is {100 * (double) counter / size:F2}% Complete [{counter}/{size}]");
+                        await Task.Delay(1);
+                        delay_counter = 0;
+                    }
+                }
+            }
+            UnityEngine.Debug.Log($"Training Complete.");
         }
     }
 }

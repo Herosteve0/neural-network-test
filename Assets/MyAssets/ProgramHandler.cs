@@ -6,22 +6,30 @@ using System.Threading.Tasks;
 
 public class ProgramHandler : MonoBehaviour {
     
-    NeuralNetwork Network;
-    NeuralNetworkTrainer Trainer;
+    public NeuralNetwork Network;
+    public NeuralNetworkTrainer Trainer;
+    
+    [SerializeField] float learning_rate = 0.075f;
+    [SerializeField] int batchSize = 100;
+    [SerializeField] int cycles = 5;
 
-    [SerializeField] bool state = false;
-    int training_index;
+    public static ProgramHandler instance;
 
     private void OnEnable() {
-        CreateNetwork(state);
+        instance = this;
+        CreateNetwork();
     }
 
     void Update() {
         if (Input.GetKeyDown(KeyCode.L)) {
             if (Network != null) RefreshNetwork();
         }
+        if (Input.GetKeyDown(KeyCode.K)) CreateNetwork();
         if (Input.GetKeyDown(KeyCode.Tab)) Visualization.ToggleInfo();
-        if (Input.GetKeyDown(KeyCode.M)) Trainer.MNIST_Training(100);
+        if (Input.GetKeyDown(KeyCode.M)) {
+            if (Input.GetKey(KeyCode.LeftShift)) Trainer.MNIST_RandomTraining(cycles);
+            else Trainer.MNIST_Training();
+        }
         //if (Input.GetKeyDown(KeyCode.Space)) {
         //    if (Input.GetKey(KeyCode.LeftShift)) Test(true);
         //}
@@ -61,26 +69,26 @@ public class ProgramHandler : MonoBehaviour {
 
         Debug.Log($"Started testing on {database.Size} test samples.");
         int a = 0;
-        for (int i = 0; i < database.Size; i += 1) {
+        for (int i = 0; i < database.Size; i++) {
             Data TestingData = database.ReadBatch(1)[0];
             Vector result = Network.Calculate(TestingData.data);
             if (result.MaxIndex() == TestingData.label) a++;
-            if (i % 2500 == 0) await Task.Delay(1);
+            if (i % 100 == 0) {
+                Debug.Log($"Testing is {100 * (double) i / database.Size:F2}% Complete [{i}/{database.Size}]");
+                await Task.Delay(1);
+            }
         }
         Debug.Log($"Testing complete with {(double)a / database.Size * 100}% accuracy. [{a}/{database.Size}]");
+        database.CloseLoad();
     }
 
 
 
-    void CreateNetwork(bool meow) {
-        if (meow) {
-            int[] layers = { 3, 2, 4 };
-            Network = new NeuralNetwork(layers);
-        } else {
-            int[] layers = { 784, 16, 16, 10 };
-            Network = new NeuralNetwork(layers);
+    void CreateNetwork() {
+        Debug.Log("New Network created.");
+        int[] layers = { 784, 128, 64, 10 };
+        Network = new NeuralNetwork(layers);
 
-            Trainer = new NeuralNetworkTrainer(Network, 0.1f);
-        }
+        Trainer = new NeuralNetworkTrainer(Network, learning_rate, batchSize);
     }
 }

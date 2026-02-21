@@ -314,6 +314,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Visualization
   Neuron_Prefab: {fileID: 5872164994382609196, guid: e5c49bae4ddd3774bad3b44fbf3dc755, type: 3}
   NeuronConnection_Prefab: {fileID: 5567620700700751709, guid: 3e3525255c8540c41a056253136037a0, type: 3}
+  NeuronStorage: {fileID: 0}
+  NeuronConnectionStorage: {fileID: 0}
   spacing: 17.5
   ShowInfo: 0
   FocusedCell: {x: 0, y: 0}
@@ -602,7 +604,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 49295343948fa804bb8987f24ea62b3a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ProgramHandler
-  state: 0
+  learning_rate: 0.1
+  batchSize: 100
+  cycles: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

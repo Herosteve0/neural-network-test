@@ -310,7 +310,8 @@ public class Visualization: MonoBehaviour {
     public GameObject[] images;
 
     public void WeightToImage() {
-        Texture2D[] texture = new Texture2D[Network.LayerLength[1]];
+        NeuralNetwork network = ProgramHandler.instance.Network;
+        Texture2D[] texture = new Texture2D[network.LayerLength[1]];
 
         for (int i = 0; i < images.Length; i++) {
             Destroy(images[i]);
@@ -322,7 +323,7 @@ public class Visualization: MonoBehaviour {
             texture[k] = new Texture2D(28, 28);
             for (int i = 0; i < 28; i++) {
                 for (int j = 0; j < 28; j++) {
-                    float weight = Network.Layers[1].Weights[k, 28 * i + j];
+                    float weight = network.Layers[1].Weights[k, 28 * i + j];
                     Color c = new Color(Math.Max(weight / -1f, 0f), 0f, Math.Max(weight / 1f, 0f), 1f);
                     texture[k].SetPixel(j, 27 - i, c);
                 }
@@ -337,13 +338,14 @@ public class Visualization: MonoBehaviour {
     }
 
     public void WeightDiffToImage() {
-        Texture2D[] texture = new Texture2D[Network.LayerLength[1]];
+        NeuralNetwork network = ProgramHandler.instance.Network;
+        Texture2D[] texture = new Texture2D[network.LayerLength[1]];
 
         for (int k = 0; k < texture.Length; k++) {
             texture[k] = new Texture2D(28, 28);
             for (int i = 0; i < 28; i++) {
                 for (int j = 0; j < 28; j++) {
-                    float weight = Network.Layers[1].Weights[k, 28 * i + j];
+                    float weight = network.Layers[1].Weights[k, 28 * i + j];
                     Color c = new Color(Math.Max(weight / -1f, 0f), 0f, Math.Max(weight / 1f, 0f), 1f);
                     c -= ((Texture2D)images[k].GetComponent<RawImage>().texture).GetPixel(j, 27-i);
                     c.a = 1f;
