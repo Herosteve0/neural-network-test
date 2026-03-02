@@ -1,12 +1,14 @@
 using System;
-using UnityEngine;
+using System.Numerics;
 using System.Text;
+using UnityEngine;
 
 namespace NeuralNetworkSystem {
     public class Vector {
         public Vector(int length) {
             Length = length;
             Data = new float[length];
+            for (int  i = 0; i < length; i++) Data[i] = 0;
         }
         public Vector(float[] values) {
             Length = values.Length;
@@ -58,27 +60,11 @@ namespace NeuralNetworkSystem {
             CompareLengths(A, C);
         }
 
-
-        public Matrix Transpose() {
-            Matrix R = new Matrix(1, Length);
-
-            for (int i = 0; i < Length; i++) {
-                R[0, i] = this[i];
-            }
-
-            return R;
-        }
-
         public void Map(Func<float, float> f, Vector Out) {
             CompareLengths(this, Out);
 
             for (int i = 0; i < Data.Length; i++) {
                 Out.Data[i] = f(Data[i]);
-            }
-        }
-        public void Map(Func<float, float> f) {
-            for (int i = 0; i < Data.Length; i++) {
-                Data[i] = f(Data[i]);
             }
         }
 
@@ -96,59 +82,46 @@ namespace NeuralNetworkSystem {
             }
         }
 
-
-        public static void Add(Vector A, Vector B, Vector Out) {
-            CompareLengths(A, B, Out);
-            for (int i = 0; i < A.Length; i++) {
-                Out[i] = A[i] + B[i];
-            }
-        }
-        public void Add(Vector A) {
-            CompareLengths(this, A);
-            for (int i = 0; i < Length; i++) {
-                Data[i] += A.Data[i];
-            }
-        }
-
         public static void Sub(Vector A, Vector B, Vector Out) {
             CompareLengths(A, B, Out);
-            for (int i = 0; i < A.Length; i++) {
+            int simd_width = Vector<float>.Count;
+
+            int i = 0;
+            for (; i <= Out.Length - simd_width; i += simd_width) {
+                var v_a = new Vector<float>(A.Data, i);
+                var v_b = new Vector<float>(B.Data, i);
+                (v_a - v_b).CopyTo(Out.Data, i);
+            }
+            for (; i < Out.Length; i++) {
                 Out[i] = A[i] - B[i];
             }
         }
+        public void Sub(Vector A) {
+            CompareLengths(this, A);
+            int simd_width = Vector<float>.Count;
 
-        public static void Scale(Vector A, float scaler, Vector Out) {
-            for (int i = 0; i < A.Length; i++) {
-                Out[i] = A[i] * scaler;
+            int i = 0;
+            for (; i <= Length - simd_width; i += simd_width) {
+                var v_a = new Vector<float>(A.Data, i);
+                var v = new Vector<float>(Data, i);
+                (v - v_a).CopyTo(Data, i);
+            }
+            for (; i < Length; i++) {
+                Data[i] -= A.Data[i];
             }
         }
-        public static void Scale(Vector A, float scaler) {
-            for (int i = 0; i < A.Length; i++) {
-                A[i] *= scaler;
+
+        public void Scale(float scaler) {
+            int simd_width = Vector<float>.Count;
+
+            int i = 0;
+            for (; i <= Length - simd_width; i += simd_width) {
+                var v = new Vector<float>(Data, i);
+                (v * scaler).CopyTo(Data, i);
             }
-        }
-
-        public static Vector Multiply(Matrix A, Vector B) {
-            Vector R = new Vector(A.Rows);
-
-            for (int i = 0; i < R.Length; i++) {
-                float v = 0;
-                for (int k = 0; k < A.Columns; k++) {
-                    v += A[i, k] * B[k];
-                }
-                R[i] = v;
+            for (; i < Length; i++) {
+                Data[i] *= scaler;
             }
-
-            return R;
-        }
-
-        public Vector ElementMultiply(Vector A) {
-            Vector R = new Vector(A.Length);
-            for (int i = 0; i < R.Length; i++) {
-                R[i] = this[i] * A[i];
-            }
-
-            return R;
         }
 
         public float Max() {
@@ -217,126 +190,36 @@ namespace NeuralNetworkSystem {
             return r.ToString();
         }
 
-        public virtual Matrix Transpose() {
-            Matrix R = new Matrix(Columns, Rows);
+        public void Sub(Matrix A) {
+            if (Rows != A.Rows) throw new Exception("Tried to sub Matrices with different Rows!");
+            if (Columns != A.Columns) throw new Exception("Tried to sub Matrices with different Columns!");
 
-            for (int i = 0; i < Rows; i++) {
-                for (int j = 0; j < Columns; j++) {
-                    R[j, i] = this[i, j];
-                }
+            int simd_width = Vector<float>.Count;
+            int length = Rows * Columns;
+
+            int i = 0;
+            for (; i <= length - simd_width; i += simd_width) {
+                var v_a = new Vector<float>(A.Data, i);
+                var v = new Vector<float>(Data, i);
+                (v - v_a).CopyTo(Data, i);
             }
-
-            return R;
-        }
-
-        public virtual void Map(Func<float, float> f, Matrix Out) {
-            for (int i = 0; i < Data.Length; i++) {
-                Out.Data[i] = f(Data[i]);
-            }
-        }
-        public virtual void Map(Func<float, float> f) {
-            for (int i = 0; i < Data.Length; i++) {
-                Data[i] = f(Data[i]);
+            for (; i < length; i++) {
+                Data[i] -= A.Data[i];
             }
         }
+        public void Scale(float scaler) {
+            int length = Rows * Columns;
 
-        public static Matrix operator +(Matrix A, Matrix B) {
-            if (A.Rows != B.Rows) throw new Exception("Tried to add unequal Matrices (Rows).");
-            if (A.Columns != B.Columns) throw new Exception("Tried to add unequal Matrices (Columns).");
+            int simd_width = Vector<float>.Count;
 
-            Matrix R = new Matrix(A.Rows, A.Columns);
-
-            for (int i = 0; i < A.Rows; i++) {
-                for (int j = 0; j < A.Columns; j++) {
-                    R[i, j] = A[i, j] + B[i, j];
-                }
+            int i = 0;
+            for (; i <= length - simd_width; i += simd_width) {
+                var v = new Vector<float>(Data, i);
+                (v * scaler).CopyTo(Data, i);
             }
-
-            return R;
-        }
-
-        public static Matrix operator -(Matrix A, Matrix B) {
-            if (A.Rows != B.Rows) throw new Exception("Tried to add unequal Matrices (Rows).");
-            if (A.Columns != B.Columns) throw new Exception("Tried to add unequal Matrices (Columns).");
-
-            Matrix R = new Matrix(A.Rows, A.Columns);
-
-            for (int i = 0; i < A.Rows; i++) {
-                for (int j = 0; j < A.Columns; j++) {
-                    R[i, j] = A[i, j] - B[i, j];
-                }
+            for (; i < length; i++) {
+                Data[i] *= scaler;
             }
-
-            return R;
-        }
-
-        public static Matrix operator *(Matrix A, Matrix B) {
-            if (B.Rows != A.Columns) throw new Exception("Tried to multiple two Matrices with wrong sizes (Rows x Columns).");
-
-            Matrix R = new Matrix(A.Rows, B.Columns);
-
-            for (int i = 0; i < R.Rows; i++) {
-                for (int j = 0; j < R.Columns; j++) {
-                    float v = 0;
-                    for (int k = 0; k < A.Columns; k++) {
-                        v += A[i, k] * B[k, j];
-                    }
-                    R[i, j] = v;
-                }
-            }
-
-            return R;
-        }
-        public static Matrix operator *(Vector A, Matrix B) {
-            if (B.Rows != 1) throw new Exception("Tried to multiple Vector and Matrix with wrong sizes (Rows x Columns = 1).");
-
-            Matrix R = new Matrix(A.Length, B.Columns);
-
-            for (int i = 0; i < R.Rows; i++) {
-                for (int j = 0; j < R.Columns; j++) {
-                    R[i, j] = A[i] * B[0, j];
-                }
-            }
-
-            return R;
-        }
-        public static Matrix operator *(Matrix A, float scaler) {
-            Matrix R = new Matrix(A.Rows, A.Columns);
-
-            for (int i = 0; i < R.Data.Length; i++) {
-                R.Data[i] = A.Data[i] * scaler;
-            }
-
-            return R;
-        }
-
-        public static Matrix operator /(Matrix A, float scaler) {
-            Matrix R = new Matrix(A.Rows, A.Columns);
-
-            for (int i = 0; i < R.Data.Length; i++) {
-                R.Data[i] = A.Data[i] / scaler;
-            }
-
-            return R;
-        }
-
-        public static void ElementMultiply(Matrix A, Matrix B, Matrix Out) {
-            if (A.Rows != Rows) throw new Exception("Tried to element-wise multiply unequal Matrices (Rows).");
-            if (A.Columns != Columns) throw new Exception("Tried to element-wise multiply unequal Matrices (Columns).");
-
-            Matrix R = new Matrix(Rows, Columns);
-
-            for (int i = 0; i < A.Rows; i++) {
-                for (int j = 0; j < A.Columns; j++) {
-                    R[i, j] = A[i, j] * this[i, j];
-                }
-            }
-
-            return R;
-        }
-
-        public static void NeuronCalculation(Matrix W, Vector I, Vector B, Vector Out) {
-            
         }
     }
 }

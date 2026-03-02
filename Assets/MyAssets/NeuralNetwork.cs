@@ -1,5 +1,7 @@
 using System;
+using System.Diagnostics;
 using System.Numerics;
+using UnityEditor.Rendering;
 
 namespace NeuralNetworkSystem {
     public class Layer {
@@ -11,7 +13,7 @@ namespace NeuralNetworkSystem {
 
         public Layer(int size) {
             NeuronNum = size;
-            Bias = Vector.Random(size, -1f, 1f);
+            Bias = new Vector(size);
             Values = new Vector(size);
             Activation = new Vector(size);
             Delta = new Vector(size);
@@ -19,6 +21,7 @@ namespace NeuralNetworkSystem {
         public Layer(int size, Layer previousLayer) : this(size) { // [to, from]
             float value = WeightScaler(previousLayer.NeuronNum);
             Weights = Matrix.Random(size, previousLayer.NeuronNum, -value, value);
+            previousLayer.NextLayer = this;
         }
 
         public int NeuronNum { get; }
@@ -29,6 +32,7 @@ namespace NeuralNetworkSystem {
         public Vector Activation { get; protected set; }
 
         public Vector Delta { get; protected set; }
+        public Layer NextLayer { get; protected set; }
 
         public virtual void Forward(Vector input) {
             CalculateValue(input);
@@ -41,7 +45,7 @@ namespace NeuralNetworkSystem {
             for (int row = 0; row < Weights.Rows; row++) {
                 float sum = Bias[row];
                 int offset = row * Weights.Columns;
-
+                    
                 int col = 0;
                 for (; col <= Weights.Columns - simd_width; col += simd_width) {
                     var v_weights = new Vector<float>(Weights.Data, offset + col);
@@ -57,34 +61,29 @@ namespace NeuralNetworkSystem {
             }
         }
 
-        public virtual void Backward(Vector PreviousValues, Vector DeltaOut) {
+        public virtual void Backward(Vector PreviousValues) {
             int simd_width = Vector<float>.Count; // 8
-            
+
             // Weight is transposed, so rows and columns are reversed.
 
-            for (int row = 0; row < Weights.Columns; row++) {
+            //UnityEngine.Debug.Log($"NextLayer.Delta: {NextLayer.Delta.Length}, NextLayer.Weights: {NextLayer.Weights.Rows}x{NextLayer.Weights.Columns}, Delta: {Delta.Length}, NextLayer.Values: {NextLayer.Values.Length}");
+            for (int row = 0; row < NextLayer.Weights.Columns; row++) {
                 float sum = 0f;
-                int offset = row * Weights.Rows;
 
                 int col = 0;
-                for (; col <= Weights.Rows - simd_width; col += simd_width) {
-                    var v_weights = new Vector<float>(Weights.Data, offset + col);
-                    var v_delta = new Vector<float>(Delta.Data, col);
+                for (; col <= NextLayer.Weights.Rows - simd_width; col += simd_width) {
+                    var v_weights = new Vector<float>(NextLayer.Weights.Data, col * NextLayer.Weights.Columns + row);
+                    var v_delta = new Vector<float>(NextLayer.Delta.Data, col);
                     sum += System.Numerics.Vector.Dot(v_weights, v_delta);
                 }
 
-                for (; col < Weights.Rows; col++) {
-                    sum += Weights.Data[offset + col] * Delta.Data[col];
+                for (; col < NextLayer.Weights.Rows; col++) {
+                    sum += NextLayer.Weights.Data[col * NextLayer.Weights.Columns + row] * NextLayer.Delta.Data[col];
                 }
 
                 //DeltaOut.Data[row] = sum * NeuralNetworkTrainer.ReLUDerivative(PreviousValues.Data[row]);
-                DeltaOut.Data[row] = PreviousValues.Data[row] > 0f ? sum : 0f;
+                Delta.Data[row] = Values.Data[row] > 0f ? sum : 0f;
             }
-
-                //(Network.Layers[l + 1].Weights.Transpose() * Delta[l])
-                //    .ElementMultiply(
-                //        Network.Layers[l].Values.Map(ReLUDerivative)
-                //    );
         }
     }
 
@@ -104,8 +103,8 @@ namespace NeuralNetworkSystem {
             Values.SoftMax(Activation);
         }
 
-        public override void Backward(Vector PreviousValues, Vector DeltaOut) {
-            Vector.Sub(Activation, PreviousValues, DeltaOut);
+        public override void Backward(Vector PreviousValues) {
+            Vector.Sub(Activation, PreviousValues, Delta);
         }
     }
 

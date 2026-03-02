@@ -12,6 +12,7 @@ public class ProgramHandler : MonoBehaviour {
     [SerializeField] float learning_rate = 0.075f;
     [SerializeField] int batchSize = 100;
     [SerializeField] int cycles = 5;
+    [SerializeField] int seed = 5000;
 
     public static ProgramHandler instance;
 
@@ -27,8 +28,8 @@ public class ProgramHandler : MonoBehaviour {
         if (Input.GetKeyDown(KeyCode.K)) CreateNetwork();
         if (Input.GetKeyDown(KeyCode.Tab)) Visualization.ToggleInfo();
         if (Input.GetKeyDown(KeyCode.M)) {
-            if (Input.GetKey(KeyCode.LeftShift)) Trainer.MNIST_RandomTraining(cycles);
-            else Trainer.MNIST_Training();
+            if (Input.GetKey(KeyCode.LeftShift)) Trainer.MNIST_Training();
+            else Trainer.MNIST_RandomTraining(cycles);
         }
         //if (Input.GetKeyDown(KeyCode.Space)) {
         //    if (Input.GetKey(KeyCode.LeftShift)) Test(true);
@@ -73,7 +74,7 @@ public class ProgramHandler : MonoBehaviour {
             Data TestingData = database.ReadBatch(1)[0];
             Vector result = Network.Calculate(TestingData.data);
             if (result.MaxIndex() == TestingData.label) a++;
-            if (i % 100 == 0) {
+            if (i % 1000 == 0) {
                 Debug.Log($"Testing is {100 * (double) i / database.Size:F2}% Complete [{i}/{database.Size}]");
                 await Task.Delay(1);
             }
@@ -89,6 +90,6 @@ public class ProgramHandler : MonoBehaviour {
         int[] layers = { 784, 128, 64, 10 };
         Network = new NeuralNetwork(layers);
 
-        Trainer = new NeuralNetworkTrainer(Network, learning_rate, batchSize);
+        Trainer = new NeuralNetworkTrainer(Network, learning_rate, batchSize, seed);
     }
 }
