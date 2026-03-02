@@ -25,7 +25,7 @@ namespace NeuralNetworkSystem {
         public virtual Vector Forward(Vector input) {
             Inputs = input;
             Values = Weights * input + Bias;
-            Activation = Values.Map(NeuralNetworkTrainer.Sigmoid);
+            Activation = Values.Map(NeuralNetworkTrainer.ReLU);
             return Activation;
         }
     }

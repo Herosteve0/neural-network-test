@@ -28,7 +28,7 @@ public class MNISTDatabase {
         int count = ReadBigEndianInt(br);
         int rows = ReadBigEndianInt(br); // 28
         int columns = ReadBigEndianInt(br); // 28
-        
+
         int imageSize = rows * columns;
         float[][] images = new float[imageSize][];
 
@@ -56,8 +56,10 @@ public class MNISTDatabase {
         return labels;
     }
 
-
-
+    public static Data[] LoadAllTrainingData() {
+        MNISTDatabase database = new MNISTDatabase("Assets/StreamingAssets/MNIST/train-images.idx3-ubyte", "Assets/StreamingAssets/MNIST/train-labels.idx1-ubyte");
+        return database.ReadBatch(database.Size);
+    }
 
     public MNISTDatabase(string image_path, string label_path) {
         br_images = new BinaryReader(File.OpenRead(image_path));
@@ -66,7 +68,7 @@ public class MNISTDatabase {
         int magic_i = ReadBigEndianInt(br_images); // 2051
         int magic_l = ReadBigEndianInt(br_labels); // 2049
 
-        int size_l = ReadBigEndianInt(br_labels);;
+        int size_l = ReadBigEndianInt(br_labels); ;
         int size_i = ReadBigEndianInt(br_images);
 
         if (size_l != size_i) {
@@ -86,6 +88,8 @@ public class MNISTDatabase {
 
     public Data[] ReadBatch(int batchSize) {
         int loops = Math.Min(batchSize, Size - Index);
+        if (loops <= 0) return null;
+
         Data[] r = new Data[loops];
 
         for (int i = 0; i < loops; i++) {
@@ -101,6 +105,8 @@ public class MNISTDatabase {
         }
 
         Index += loops;
+
+        if (Index >= Size) CloseLoad();
 
         return r;
     }
