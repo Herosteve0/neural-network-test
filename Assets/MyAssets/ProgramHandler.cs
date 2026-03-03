@@ -14,6 +14,8 @@ public class ProgramHandler : MonoBehaviour {
     [SerializeField] int cycles = 5;
     [SerializeField] int seed = 5000;
 
+    public bool disableMessages = true;
+
     public static ProgramHandler instance;
 
     private void OnEnable() {
@@ -66,6 +68,7 @@ public class ProgramHandler : MonoBehaviour {
             else Visualization.instance.WeightToImage();
         }
 
+        if (Input.GetKeyDown(KeyCode.Tab)) disableMessages = !disableMessages;
 
 
         SelectCell();

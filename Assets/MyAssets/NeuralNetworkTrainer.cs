@@ -183,6 +183,7 @@ namespace NeuralNetworkSystem {
             DoStep,
         }
         void PrintMessage(ConsoleMessages type) {
+            if (ProgramHandler.instance.disableMessages) return;
             if (type == ConsoleMessages.Start) UnityEngine.Debug.Log($"Started training on {TrainingAmount} examples.");
             else if (type == ConsoleMessages.Progress) UnityEngine.Debug.Log($"Training is {100 * (double)TrainingProgress / TrainingAmount:F2}% Complete [{TrainingProgress}/{TrainingAmount}]");
             else if (type == ConsoleMessages.Finish) UnityEngine.Debug.Log($"Training Complete.");
@@ -192,7 +193,7 @@ namespace NeuralNetworkSystem {
             else if (type == ConsoleMessages.DoStep) UnityEngine.Debug.Log("Did one training step.");
         }
 
-        int delay_ticks = 500;
+        int delay_ticks = 750;
 
         //public async Task MNIST_Training() {
         //    MNISTDatabase database = new MNISTDatabase("Assets/StreamingAssets/MNIST/train-images.idx3-ubyte", "Assets/StreamingAssets/MNIST/train-labels.idx1-ubyte");

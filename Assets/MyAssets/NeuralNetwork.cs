@@ -184,8 +184,6 @@ namespace NeuralNetworkSystem {
                 } else {
                     Layers[i] = new Layer(layers[i], Layers[i - 1]);
                 }
-
-                UnityEngine.Debug.Log($"Layer {i}:\n Weights {Layers[i].Weights}\n Bias {Layers[i].Bias}");
             }
         }
 
