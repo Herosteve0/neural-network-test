@@ -34,6 +34,19 @@ public class ProgramHandler : MonoBehaviour {
             for (int i = 0; i < 500; i++) DetailVisualization.StoreLoss(i / 125f);
             DetailVisualization.Refresh();
         }
+        if (Input.GetKeyDown(KeyCode.D)) {
+            Vector a = new Vector(
+                new float[] { -0.3f, 0.1f, 0.7f, -0.6f }
+            );
+
+            Debug.Log("");
+            Data data = new Data(a, 0);
+            Trainer.SingleExampleTraining(data);
+
+            //for (int i = 0; i < Network.LayerAmount; i++) {
+            //    Debug.Log($"Layer {i}:\n Values {Network.Layers[i].Values}\n Activation {Network.Layers[i].Activation}");
+            //}
+        }
 
         if (Input.GetKeyDown(KeyCode.X)) Trainer.TogglePause();
         if (Input.GetKeyDown(KeyCode.C)) Trainer.ToggleStep();
@@ -97,9 +110,12 @@ public class ProgramHandler : MonoBehaviour {
     async void CreateNetwork() {
         Debug.Log("New Network created.");
         int[] layers = { 784, 128, 64, 10 };
+        //int[] layers = { 4, 3, 2 };
+
+        UnityEngine.Random.InitState(seed);
         Network = new NeuralNetwork(layers);
 
-        Trainer = new NeuralNetworkTrainer(Network, learning_rate, batchSize, seed);
+        Trainer = new NeuralNetworkTrainer(Network, learning_rate, batchSize, cycles);
 
         await Task.Delay(1);
         DetailVisualization.Initialize(Network, Trainer);

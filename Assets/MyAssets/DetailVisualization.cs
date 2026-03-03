@@ -58,7 +58,7 @@ public class DetailVisualization:MonoBehaviour {
     [SerializeField] int progressbars = 34;
     void PrintDetails() {
         string txt = $"Learning Rate: {Trainer.learning_rate}\n";
-        txt += $"Training Batch Size: {Trainer.batchSize}\n";
+        txt += $"Training Batch Size: {Trainer.batchSize}, Cycles: {Trainer.cycles}\n";
         txt += $"\n";
         if (Trainer.isTraining) {
             float d = Trainer.TrainingAmount / progressbars;

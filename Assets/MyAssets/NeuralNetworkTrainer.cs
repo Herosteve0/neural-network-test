@@ -42,13 +42,11 @@ namespace NeuralNetworkSystem {
     }
 
     public class NeuralNetworkTrainer {
-        public NeuralNetworkTrainer(NeuralNetwork network, float learning_rate = 0.075f, int batchSize = 100, int? seed = null) {
+        public NeuralNetworkTrainer(NeuralNetwork network, float learning_rate = 0.075f, int batchSize = 100, int cycles = 5) {
             Network = network;
             this.batchSize = batchSize;
+            this.cycles = cycles;
             this.learning_rate = learning_rate;
-
-            if (seed.HasValue) Seed = seed.Value;
-            else Seed = DateTime.Now.Second;
 
             isTraining = false;
             PausedTraining = false;
@@ -58,6 +56,7 @@ namespace NeuralNetworkSystem {
         NeuralNetwork Network { get; }
         public float learning_rate { get; }
         public int batchSize { get; }
+        public int cycles { get; }
         public int Seed { get; }
 
         public bool isTraining { get; private set; }
@@ -93,51 +92,22 @@ namespace NeuralNetworkSystem {
 
         public float TrainingCalculations(Data TrainingData, ref Matrix[] WeightDelta, ref Vector[] BiasDelta) {
             Vector input = NormalizeInput(TrainingData.data);
-            Network.Calculate(input); // all layers of the network have the values we want (inupt, value, activation)
+            //Vector input = TrainingData.data;
+            Vector output = Network.Calculate(input); // all layers of the network have the values we want (inupt, value, activation)
 
             int length = Network.LayerAmount - 1;
 
             Vector Y = Vector.SingleValue(Network.LayerLength[length], TrainingData.label);
-            float Loss = SoftMaxLoss(Network.Layers[length].Activation, TrainingData.label);
+            float Loss = SoftMaxLoss(output, TrainingData.label);
 
             int simd_width = Vector<float>.Count;
 
             for (int i = length; i > 0; i--) {
                 int l = i - 1;
-                if (i == length) Network.Layers[i].BackwardOutput(Y);
-                else Network.Layers[i].Backward();
-
-                int Rows = Network.Layers[i - 1].Activation.Length;
-                int Columns = Network.Layers[i].Delta.Length;
-
-                int col;
-                for (int row = 0; row < Rows; row++) {
-                    int offset = row * Columns;
-
-                    col = 0;
-                    for (; col <= Columns - simd_width; col += simd_width) {
-                        var v = new Vector<float>(Network.Layers[i].Delta.Data, col);
-                        var v_weight = new Vector<float>(WeightDelta[l].Data, offset + col);
-
-                        v = Network.Layers[i - 1].Activation.Data[row] * v;
-                        (v + v_weight).CopyTo(WeightDelta[l].Data, offset + col);
-                    }
-
-                    for (; col < Columns; col++) {
-                        WeightDelta[l].Data[offset + col] += Network.Layers[i].Delta.Data[col] * Network.Layers[i - 1].Activation.Data[row];
-                    }
-                }
-
-                col = 0;
-                for (; col <= Columns - simd_width; col += simd_width) {
-                    var v = new Vector<float>(Network.Layers[i].Delta.Data, col);
-                    var v_bias = new Vector<float>(BiasDelta[l].Data, col);
-                    (v + v_bias).CopyTo(BiasDelta[l].Data, col);
-                }
-
-                for (; col < Columns; col++) {
-                    BiasDelta[l].Data[col] += Network.Layers[i].Delta.Data[col];
-                }
+                
+                Network.Layers[i].Backward(Y); // input only used in output layer
+                Network.Layers[i].BackwardWeights(ref WeightDelta[l]);
+                Network.Layers[i].BackwardBias(ref BiasDelta[l]);
             }
 
             return Loss;
@@ -222,7 +192,7 @@ namespace NeuralNetworkSystem {
             else if (type == ConsoleMessages.DoStep) UnityEngine.Debug.Log("Did one training step.");
         }
 
-        int delay_ticks = 750;
+        int delay_ticks = 500;
 
         //public async Task MNIST_Training() {
         //    MNISTDatabase database = new MNISTDatabase("Assets/StreamingAssets/MNIST/train-images.idx3-ubyte", "Assets/StreamingAssets/MNIST/train-labels.idx1-ubyte");
@@ -267,9 +237,9 @@ namespace NeuralNetworkSystem {
             } catch (TaskCanceledException) { }
         }
 
+        public async Task MNIST_RandomTraining() { await MNIST_RandomTraining(cycles); }
         public async Task MNIST_RandomTraining(int loops) {
             DataBatch training_data = new DataBatch(MNISTDatabase.LoadAllTrainingData());
-            UnityEngine.Random.InitState(Seed);
 
             TrainingProgress = 0;
             TrainingAmount = training_data.Size * loops;

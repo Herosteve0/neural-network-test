@@ -1,7 +1,8 @@
 using System;
-using System.Diagnostics;
 using System.Numerics;
-using UnityEditor.Rendering;
+using Unity.VisualScripting;
+using static UnityEngine.Rendering.DebugUI.Table;
+using UnityEngine.UIElements;
 
 namespace NeuralNetworkSystem {
     public class Layer {
@@ -23,6 +24,7 @@ namespace NeuralNetworkSystem {
             Weights = Matrix.Random(size, previousLayer.NeuronNum, -value, value);
             WeightsT = new Matrix(previousLayer.NeuronNum, size);
             Weights.Transpose(WeightsT);
+            PreviousLayer = previousLayer;
             previousLayer.NextLayer = this;
         }
 
@@ -35,6 +37,8 @@ namespace NeuralNetworkSystem {
         public Vector Activation { get; protected set; }
 
         public Vector Delta { get; protected set; }
+
+        public Layer PreviousLayer { get; protected set; }
         public Layer NextLayer { get; protected set; }
 
         public virtual void Forward(Vector input) {
@@ -65,8 +69,7 @@ namespace NeuralNetworkSystem {
             }
         }
 
-        public virtual void BackwardOutput(Vector CorrectValues) { }
-        public virtual void Backward() {
+        public virtual void Backward(Vector CorrectValues) { // input only used in output layer
             int simd_width = Vector<float>.Count; // 8
 
             // Weight is transposed, so rows and columns are reversed.
@@ -103,6 +106,46 @@ namespace NeuralNetworkSystem {
 
             if (flag) UnityEngine.Debug.Log("NaN detected!");
         }
+        public virtual void BackwardWeights(ref Matrix WeightDelta) {
+            int simd_width = Vector<float>.Count; // 8
+
+            int Rows = Delta.Length;
+            int Columns = PreviousLayer.Activation.Length;
+
+
+            for (int row = 0; row < Rows; row++) {
+                int offset = row * Columns;
+
+                int col = 0;
+                for (; col <= Columns - simd_width; col += simd_width) {
+                    var v = new Vector<float>(PreviousLayer.Activation.Data, col);
+                    var v_weight = new Vector<float>(WeightDelta.Data, offset + col);
+
+                    v = Delta.Data[row] * v;
+                    (v + v_weight).CopyTo(WeightDelta.Data, offset + col);
+                }
+
+                for (; col < Columns; col++) {
+                    WeightDelta.Data[offset + col] += Delta.Data[row] * PreviousLayer.Activation.Data[col];
+                }
+            }
+        }
+        public virtual void BackwardBias(ref Vector BiasDelta) {
+            int simd_width = Vector<float>.Count; // 8
+
+            int Columns = Delta.Length;
+
+            int col = 0;
+            for (; col <= Columns - simd_width; col += simd_width) {
+                var v = new Vector<float>(Delta.Data, col);
+                var v_bias = new Vector<float>(BiasDelta.Data, col);
+                (v + v_bias).CopyTo(BiasDelta.Data, col);
+            }
+
+            for (; col < Columns; col++) {
+                BiasDelta.Data[col] += Delta.Data[col];
+            }
+        }
     }
 
     class InputLayer : Layer {
@@ -121,7 +164,7 @@ namespace NeuralNetworkSystem {
             Values.SoftMax(Activation);
         }
 
-        public override void BackwardOutput(Vector CorrectValues) {
+        public override void Backward(Vector CorrectValues) {
             Vector.Sub(Activation, CorrectValues, Delta);
         }
     }
@@ -141,6 +184,8 @@ namespace NeuralNetworkSystem {
                 } else {
                     Layers[i] = new Layer(layers[i], Layers[i - 1]);
                 }
+
+                UnityEngine.Debug.Log($"Layer {i}:\n Weights {Layers[i].Weights}\n Bias {Layers[i].Bias}");
             }
         }
 
