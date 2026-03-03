@@ -21,12 +21,15 @@ namespace NeuralNetworkSystem {
         public Layer(int size, Layer previousLayer) : this(size) { // [to, from]
             float value = WeightScaler(previousLayer.NeuronNum);
             Weights = Matrix.Random(size, previousLayer.NeuronNum, -value, value);
+            WeightsT = new Matrix(previousLayer.NeuronNum, size);
+            Weights.Transpose(WeightsT);
             previousLayer.NextLayer = this;
         }
 
         public int NeuronNum { get; }
         public Vector Bias { get; set; }
         public Matrix Weights { get; set; }
+        public Matrix WeightsT { get; set; }
 
         public Vector Values { get; protected set; }
         public Vector Activation { get; protected set; }
@@ -36,11 +39,11 @@ namespace NeuralNetworkSystem {
 
         public virtual void Forward(Vector input) {
             CalculateValue(input);
-            Values.Map(ActivationFunction, Activation);
         }
         protected void CalculateValue(Vector input) {
-            
             int simd_width = Vector<float>.Count; // 8
+
+            // Weights * Input + Bias
 
             for (int row = 0; row < Weights.Rows; row++) {
                 float sum = Bias[row];
@@ -58,32 +61,47 @@ namespace NeuralNetworkSystem {
                 }
 
                 Values[row] = sum;
+                Activation[row] = ActivationFunction(sum);
             }
         }
 
-        public virtual void Backward(Vector PreviousValues) {
+        public virtual void BackwardOutput(Vector CorrectValues) { }
+        public virtual void Backward() {
             int simd_width = Vector<float>.Count; // 8
 
             // Weight is transposed, so rows and columns are reversed.
 
-            //UnityEngine.Debug.Log($"NextLayer.Delta: {NextLayer.Delta.Length}, NextLayer.Weights: {NextLayer.Weights.Rows}x{NextLayer.Weights.Columns}, Delta: {Delta.Length}, NextLayer.Values: {NextLayer.Values.Length}");
-            for (int row = 0; row < NextLayer.Weights.Columns; row++) {
-                float sum = 0f;
+            int Rows = NextLayer.WeightsT.Rows;
+            int Columns = NextLayer.WeightsT.Columns;
 
+            bool flag = false;
+
+            //UnityEngine.Debug.Log($"NextLayer.Delta: {NextLayer.Delta.Length}, NextLayer.Weights: {NextLayer.Weights.Rows}x{NextLayer.Weights.Columns}, Delta: {Delta.Length}, NextLayer.Values: {NextLayer.Values.Length}");
+            for (int row = 0; row < Rows; row++) {
+                float sum = 0f;
+                int offset = row * Columns;
+
+                // Sum of N.W.T[row,...] * N.D[...]
                 int col = 0;
-                for (; col <= NextLayer.Weights.Rows - simd_width; col += simd_width) {
-                    var v_weights = new Vector<float>(NextLayer.Weights.Data, col * NextLayer.Weights.Columns + row);
+                for (; col <= Columns - simd_width; col += simd_width) {
+                    var v_weights = new Vector<float>(NextLayer.WeightsT.Data, offset + col);
                     var v_delta = new Vector<float>(NextLayer.Delta.Data, col);
                     sum += System.Numerics.Vector.Dot(v_weights, v_delta);
                 }
 
-                for (; col < NextLayer.Weights.Rows; col++) {
-                    sum += NextLayer.Weights.Data[col * NextLayer.Weights.Columns + row] * NextLayer.Delta.Data[col];
+                for (; col < Columns; col++) {
+                    sum += NextLayer.WeightsT.Data[offset + col] * NextLayer.Delta.Data[col];
                 }
 
-                //DeltaOut.Data[row] = sum * NeuralNetworkTrainer.ReLUDerivative(PreviousValues.Data[row]);
-                Delta.Data[row] = Values.Data[row] > 0f ? sum : 0f;
+                if (float.IsNaN(sum)) flag = true;
+
+                // Sum * ReLU'(Z[row])
+
+                Delta.Data[row] = sum * NeuralNetworkTrainer.ReLUDerivative(Values.Data[row]);
+                //Delta.Data[row] = Values.Data[row] > 0f ? sum : 0f;
             }
+
+            if (flag) UnityEngine.Debug.Log("NaN detected!");
         }
     }
 
@@ -99,12 +117,12 @@ namespace NeuralNetworkSystem {
         public OutputLayer(int size, Layer previousLayer) : base(size, previousLayer) { }
 
         public override void Forward(Vector input) {
-            CalculateValue(input);
+            base.Forward(input);
             Values.SoftMax(Activation);
         }
 
-        public override void Backward(Vector PreviousValues) {
-            Vector.Sub(Activation, PreviousValues, Delta);
+        public override void BackwardOutput(Vector CorrectValues) {
+            Vector.Sub(Activation, CorrectValues, Delta);
         }
     }
 

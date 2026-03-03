@@ -22,15 +22,28 @@ public class ProgramHandler : MonoBehaviour {
     }
 
     void Update() {
-        if (Input.GetKeyDown(KeyCode.L)) {
-            if (Network != null) RefreshNetwork();
-        }
+        //if (Input.GetKeyDown(KeyCode.L)) {
+        //    if (Network != null) Visualization.Visualize(Network);
+        //}
+        //if (Input.GetKeyDown(KeyCode.Tab)) Visualization.ToggleInfo();
+
         if (Input.GetKeyDown(KeyCode.K)) CreateNetwork();
-        if (Input.GetKeyDown(KeyCode.Tab)) Visualization.ToggleInfo();
-        if (Input.GetKeyDown(KeyCode.M)) {
-            if (Input.GetKey(KeyCode.LeftShift)) Trainer.MNIST_Training();
-            else Trainer.MNIST_RandomTraining(cycles);
+        if (Input.GetKeyDown(KeyCode.M)) Trainer.MNIST_RandomTraining(cycles);
+        if (Input.GetKeyDown(KeyCode.Z)) Trainer.ForceStopTraining();
+        if (Input.GetKeyDown(KeyCode.S)) {
+            for (int i = 0; i < 500; i++) DetailVisualization.StoreLoss(i / 125f);
+            DetailVisualization.Refresh();
         }
+
+        if (Input.GetKeyDown(KeyCode.X)) Trainer.TogglePause();
+        if (Input.GetKeyDown(KeyCode.C)) Trainer.ToggleStep();
+        if (Input.GetKeyDown(KeyCode.Space)) Trainer.DoStep();
+
+        if (Input.GetKeyDown(KeyCode.V)) {
+            DetailVisualization.ClearLosses();
+            DetailVisualization.Refresh();
+        }
+        
         //if (Input.GetKeyDown(KeyCode.Space)) {
         //    if (Input.GetKey(KeyCode.LeftShift)) Test(true);
         //}
@@ -61,10 +74,6 @@ public class ProgramHandler : MonoBehaviour {
         Visualization.Focus(vars.layer, vars.index);
     }
 
-    void RefreshNetwork() {
-        Visualization.Visualize(Network);
-    }
-
     async Task LargeTest() {
         MNISTDatabase database = new MNISTDatabase("Assets/StreamingAssets/MNIST/t10k-images.idx3-ubyte", "Assets/StreamingAssets/MNIST/t10k-labels.idx1-ubyte");
 
@@ -85,11 +94,14 @@ public class ProgramHandler : MonoBehaviour {
 
 
 
-    void CreateNetwork() {
+    async void CreateNetwork() {
         Debug.Log("New Network created.");
         int[] layers = { 784, 128, 64, 10 };
         Network = new NeuralNetwork(layers);
 
         Trainer = new NeuralNetworkTrainer(Network, learning_rate, batchSize, seed);
+
+        await Task.Delay(1);
+        DetailVisualization.Initialize(Network, Trainer);
     }
 }

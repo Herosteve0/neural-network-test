@@ -30,7 +30,7 @@ public class MNISTDatabase {
         int columns = ReadBigEndianInt(br); // 28
         
         int imageSize = rows * columns;
-        float[][] images = new float[imageSize][];
+        float[][] images = new float[columns][];
 
         for (int i = 0; i < count; i++) {
             images[i] = new float[imageSize];

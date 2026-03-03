@@ -1,3 +1,4 @@
+using JetBrains.Annotations;
 using System;
 using System.Numerics;
 using System.Text;
@@ -60,25 +61,19 @@ namespace NeuralNetworkSystem {
             CompareLengths(A, C);
         }
 
-        public void Map(Func<float, float> f, Vector Out) {
-            CompareLengths(this, Out);
-
-            for (int i = 0; i < Data.Length; i++) {
-                Out.Data[i] = f(Data[i]);
-            }
-        }
-
         public void SoftMax(Vector Out) {
             CompareLengths(this, Out);
             float max = Max();
 
             float sum = 0f;
             for (int i = 0; i < Length; i++) {
-                sum += Mathf.Exp(Data[i] - max);
+                float e = Mathf.Exp(Data[i] - max);
+                Out[i] = e;
+                sum += e;
             }
 
             for (int i = 0; i < Length; i++) {
-                Out.Data[i] = Mathf.Exp(Data[i] - max) / sum;
+                Out.Data[i] /= sum;
             }
         }
 
@@ -190,6 +185,17 @@ namespace NeuralNetworkSystem {
             return r.ToString();
         }
 
+        public void Transpose(Matrix Out) {
+            if (Rows != Out.Columns) throw new Exception("Tried to transpose Matrices with unequal lengths (Rows - Columns)!");
+            if (Columns != Out.Rows) throw new Exception("Tried to transpose Matrices with unequal lengths (Columns - Rows)!");
+
+            for (int i = 0; i < Rows; i++) {
+                for (int j = 0; j < Columns; j++) {
+                    Out[j, i] = this[i, j];
+                }
+            }
+        }
+
         public void Sub(Matrix A) {
             if (Rows != A.Rows) throw new Exception("Tried to sub Matrices with different Rows!");
             if (Columns != A.Columns) throw new Exception("Tried to sub Matrices with different Columns!");
@@ -205,6 +211,16 @@ namespace NeuralNetworkSystem {
             }
             for (; i < length; i++) {
                 Data[i] -= A.Data[i];
+            }
+        }
+        public void SubT(Matrix A) {
+            if (Rows != A.Columns) throw new Exception("Tried to sub Matrices with different Rows x Columns!");
+            if (Columns != A.Rows) throw new Exception("Tried to sub Matrices with different Columns x Rows!");
+
+            for (int row = 0; row < Rows; row++) {
+                for (int col = 0; col < Columns; col++) {
+                    this[row, col] -= A[col, row];
+                }
             }
         }
         public void Scale(float scaler) {

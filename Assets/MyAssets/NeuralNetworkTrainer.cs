@@ -1,7 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
+using System.Threading;
 using System.Threading.Tasks;
+using UnityEditor;
+using static UnityEditor.Experimental.AssetDatabaseExperimental.AssetDatabaseCounters;
 
 namespace NeuralNetworkSystem {
     public struct Data {
@@ -45,12 +49,24 @@ namespace NeuralNetworkSystem {
 
             if (seed.HasValue) Seed = seed.Value;
             else Seed = DateTime.Now.Second;
+
+            isTraining = false;
+            PausedTraining = false;
+            StepTraining = false;
         }
 
         NeuralNetwork Network { get; }
         public float learning_rate { get; }
         public int batchSize { get; }
         public int Seed { get; }
+
+        public bool isTraining { get; private set; }
+        public bool PausedTraining { get; private set; }
+        public bool StepTraining { get; private set; }
+        public int TrainingProgress { get; private set; }
+        public int TrainingAmount { get; private set; }
+
+        CancellationTokenSource canceltoken;
 
 
         public static Vector NormalizeInput(Vector v) {  // add Simd
@@ -74,16 +90,8 @@ namespace NeuralNetworkSystem {
         public static float SoftMaxLoss(Vector V, int label) {
             return -UnityEngine.Mathf.Log(V[label]);
         }
-        public static float Loss(Vector V, int label) {
-            float Cost = V[label] - 1;
-            return Cost * Cost;
-        }
 
-        public static float LossDerivative(Vector V, int label) {
-            return (V[label] - 1) * 2;
-        }
-
-        public void TrainingCalculations(Data TrainingData, ref Matrix[] WeightDelta, ref Vector[] BiasDelta) {
+        public float TrainingCalculations(Data TrainingData, ref Matrix[] WeightDelta, ref Vector[] BiasDelta) {
             Vector input = NormalizeInput(TrainingData.data);
             Network.Calculate(input); // all layers of the network have the values we want (inupt, value, activation)
 
@@ -91,36 +99,54 @@ namespace NeuralNetworkSystem {
 
             Vector Y = Vector.SingleValue(Network.LayerLength[length], TrainingData.label);
             float Loss = SoftMaxLoss(Network.Layers[length].Activation, TrainingData.label);
-            Vector Cost = Vector.SingleValue(Network.LayerLength[length] , TrainingData.label, Loss);
 
             int simd_width = Vector<float>.Count;
 
             for (int i = length; i > 0; i--) {
                 int l = i - 1;
-                Network.Layers[i].Backward(i == length ? Y : Network.Layers[i + 1].Values);
+                if (i == length) Network.Layers[i].BackwardOutput(Y);
+                else Network.Layers[i].Backward();
 
-                for (int row = 0; row < Network.Layers[i].Activation.Length; row++) {
-                    int offset = row * Network.Layers[i].Delta.Length;
+                int Rows = Network.Layers[i - 1].Activation.Length;
+                int Columns = Network.Layers[i].Delta.Length;
 
-                    int col = 0;
-                    for (; col <= Network.Layers[i].Delta.Length - simd_width; col += simd_width) {
+                int col;
+                for (int row = 0; row < Rows; row++) {
+                    int offset = row * Columns;
+
+                    col = 0;
+                    for (; col <= Columns - simd_width; col += simd_width) {
                         var v = new Vector<float>(Network.Layers[i].Delta.Data, col);
                         var v_weight = new Vector<float>(WeightDelta[l].Data, offset + col);
-                        (Network.Layers[i].Activation.Data[row] * v + v_weight).CopyTo(WeightDelta[l].Data, offset + col);
 
-                        var v_bias = new Vector<float>(BiasDelta[l].Data, col);
-                        (v + v_bias).CopyTo(BiasDelta[l].Data, col);
+                        v = Network.Layers[i - 1].Activation.Data[row] * v;
+                        (v + v_weight).CopyTo(WeightDelta[l].Data, offset + col);
                     }
 
-                    for (; col < Network.Layers[i].Delta.Length; col++) {
-                        WeightDelta[l].Data[offset + col] += Network.Layers[i].Delta.Data[col] * Network.Layers[l].Activation.Data[row];
-                        BiasDelta[l].Data[col] += Network.Layers[i].Delta.Data[col];
+                    for (; col < Columns; col++) {
+                        WeightDelta[l].Data[offset + col] += Network.Layers[i].Delta.Data[col] * Network.Layers[i - 1].Activation.Data[row];
                     }
                 }
+
+                col = 0;
+                for (; col <= Columns - simd_width; col += simd_width) {
+                    var v = new Vector<float>(Network.Layers[i].Delta.Data, col);
+                    var v_bias = new Vector<float>(BiasDelta[l].Data, col);
+                    (v + v_bias).CopyTo(BiasDelta[l].Data, col);
+                }
+
+                for (; col < Columns; col++) {
+                    BiasDelta[l].Data[col] += Network.Layers[i].Delta.Data[col];
+                }
             }
+
+            return Loss;
         }
 
-        public void SingleExampleTraining(Data TrainingData) {
+        public async Task SingleExampleTraining(Data TrainingData) {
+            await BatchTraining(new DataBatch(new Data[] { TrainingData }));
+        }
+        public async Task BatchTraining(DataBatch DataBatch) {
             Vector[] Delta = new Vector[Network.LayerAmount - 1];
             Matrix[] WeightDelta = new Matrix[Network.LayerAmount - 1];
             Vector[] BiasDelta = new Vector[Network.LayerAmount - 1];
@@ -130,95 +156,142 @@ namespace NeuralNetworkSystem {
                 BiasDelta[i] = new Vector(Network.LayerLength[i + 1]);
             }
 
-            TrainingCalculations(TrainingData, ref WeightDelta, ref BiasDelta);
-
-            for (int i = 1; i < Network.LayerAmount; i++) {
-                WeightDelta[i].Scale(learning_rate);
-                BiasDelta[i].Scale(learning_rate);
-
-                Network.Layers[i].Weights.Sub(WeightDelta[i - 1]);
-                Network.Layers[i].Bias.Sub(BiasDelta[i - 1]);
-            }
-        }
-
-        public void BatchTraining(DataBatch DataBatch) {
-            Vector[] Delta = new Vector[Network.LayerAmount - 1];
-            Matrix[] WeightDelta = new Matrix[Network.LayerAmount - 1];
-            Vector[] BiasDelta = new Vector[Network.LayerAmount - 1];
-
-            for (int i = 0; i < Network.LayerAmount - 1; i++) {
-                WeightDelta[i] = new Matrix(Network.LayerLength[i + 1], Network.LayerLength[i]);
-                BiasDelta[i] = new Vector(Network.LayerLength[i + 1]);
-            }
+            float avg = 0f;
 
             foreach (Data TrainingData in DataBatch.Data) {
-                TrainingCalculations(TrainingData, ref WeightDelta, ref BiasDelta);
+                if (StepTraining) {
+                    canceltoken = new CancellationTokenSource();
+                    await WaitFor(-1, canceltoken.Token);
+                }
+                avg += TrainingCalculations(TrainingData, ref WeightDelta, ref BiasDelta);
             }
+            avg /= DataBatch.Size;
+            DetailVisualization.StoreLoss(avg);
 
             for (int i = 1; i < Network.LayerAmount; i++) {
-                WeightDelta[i - 1].Scale(learning_rate / DataBatch.Size);
-                BiasDelta[i - 1].Scale(learning_rate / DataBatch.Size);
+                int l = i - 1;
+                WeightDelta[l].Scale(learning_rate / DataBatch.Size);
+                BiasDelta[l].Scale(learning_rate / DataBatch.Size);
 
-                Network.Layers[i].Weights.Sub(WeightDelta[i - 1]);
-                Network.Layers[i].Bias.Sub(BiasDelta[i - 1]);
+                Network.Layers[i].Weights.Sub(WeightDelta[l]);
+                Network.Layers[i].WeightsT.SubT(WeightDelta[l]);
+                Network.Layers[i].Bias.Sub(BiasDelta[l]);
             }
+        }
+
+
+        public void ForceStopTraining() {
+            if (!isTraining) return;
+            isTraining = false;
+            PrintMessage(ConsoleMessages.ForceStop);
+        }
+        public void TogglePause() {
+            PausedTraining = !PausedTraining;
+            if (PausedTraining) canceltoken = new CancellationTokenSource();
+            else canceltoken.Cancel();
+            PrintMessage(ConsoleMessages.Pause);
+        }
+        public void ToggleStep() {
+            StepTraining = !StepTraining;
+            if (StepTraining) canceltoken = new CancellationTokenSource();
+            else canceltoken.Cancel();
+            PrintMessage(ConsoleMessages.Step);
+        }
+        public void DoStep() {
+            if (!StepTraining) return;
+            PrintMessage(ConsoleMessages.DoStep);
+            canceltoken.Cancel();
+        }
+
+        enum ConsoleMessages {
+            Start,
+            Progress,
+            Finish,
+            ForceStop,
+            Pause,
+            Step,
+            DoStep,
+        }
+        void PrintMessage(ConsoleMessages type) {
+            if (type == ConsoleMessages.Start) UnityEngine.Debug.Log($"Started training on {TrainingAmount} examples.");
+            else if (type == ConsoleMessages.Progress) UnityEngine.Debug.Log($"Training is {100 * (double)TrainingProgress / TrainingAmount:F2}% Complete [{TrainingProgress}/{TrainingAmount}]");
+            else if (type == ConsoleMessages.Finish) UnityEngine.Debug.Log($"Training Complete.");
+            else if (type == ConsoleMessages.ForceStop) UnityEngine.Debug.Log($"Force stopped training.");
+            else if (type == ConsoleMessages.Pause) UnityEngine.Debug.Log((PausedTraining ? "Paused" : "Unpaused") + " training.");
+            else if (type == ConsoleMessages.Step) UnityEngine.Debug.Log((StepTraining ? "Enabled" : "Disabled") + " step training.");
+            else if (type == ConsoleMessages.DoStep) UnityEngine.Debug.Log("Did one training step.");
         }
 
         int delay_ticks = 750;
-        public async Task MNIST_Training() {
-            MNISTDatabase database = new MNISTDatabase("Assets/StreamingAssets/MNIST/train-images.idx3-ubyte", "Assets/StreamingAssets/MNIST/train-labels.idx1-ubyte");
 
-            UnityEngine.Debug.Log($"Started training on {database.Size} examples.");
-            int counter = 0;
-            for (int i = 0; i < 1; i += batchSize) {
-                DataBatch batch = new DataBatch(database.ReadBatch(batchSize));
-                BatchTraining(batch);
-                counter += batchSize;
-                if (counter >= delay_ticks) {
-                    UnityEngine.Debug.Log($"Training is {100 * (double)i / database.Size:F2}% Complete [{i}/{database.Size}]");
-                    await Task.Delay(1);
-                    counter = 0;
-                }
-            }
-            UnityEngine.Debug.Log($"Training Complete.");
-            for (int i = 0; i < Network.LayerAmount; i++) {
-                UnityEngine.Debug.Log($"Weights[{i}]: {Network.Layers[i].Weights}");
-                UnityEngine.Debug.Log($"Bias[{i}]: {Network.Layers[i].Bias}");
+        //public async Task MNIST_Training() {
+        //    MNISTDatabase database = new MNISTDatabase("Assets/StreamingAssets/MNIST/train-images.idx3-ubyte", "Assets/StreamingAssets/MNIST/train-labels.idx1-ubyte");
+
+        //    TrainingProgress = 0;
+        //    TrainingAmount = database.Size;
+        //    isTraining = true;
+
+        //    PrintMessage(ConsoleMessages.Start);
+        //    int counter = 0;
+        //    for (int i = 0; i < database.Size; i += batchSize) {
+        //        if (!isTraining) return;
+        //        bool breath = counter >= delay_ticks;
+        //        await Train(new DataBatch(database.ReadBatch(batchSize)), breath);
+        //        if (breath) counter = 0;
+        //    }
+        //    isTraining = false;
+        //    database.CloseLoad();
+
+        //    PrintMessage(ConsoleMessages.Finish);
+        //    DetailVisualization.Refresh();
+        //}
+
+
+
+        async Task Train(DataBatch batch, bool breath) {
+            if (PausedTraining) await WaitFor(-1, canceltoken.Token);
+
+            await BatchTraining(batch);
+            TrainingProgress += batchSize;
+            if (breath) {
+                PrintMessage(ConsoleMessages.Progress);
+                DetailVisualization.Refresh();
+                await Task.Delay(1);
             }
 
-            database.CloseLoad();
+        }
+
+        async Task WaitFor(int ms, CancellationToken token) {
+            try {
+                await Task.Delay(ms, token);
+            } catch (TaskCanceledException) { }
         }
 
         public async Task MNIST_RandomTraining(int loops) {
             DataBatch training_data = new DataBatch(MNISTDatabase.LoadAllTrainingData());
-            int size = training_data.Size * loops;
-
             UnityEngine.Random.InitState(Seed);
 
-            UnityEngine.Debug.Log($"Started training on {size} ({training_data.Size} x {loops}) examples.");
-            int delay_counter = 0;
+            TrainingProgress = 0;
+            TrainingAmount = training_data.Size * loops;
+            isTraining = true;
+
+            PrintMessage(ConsoleMessages.Start);
             int counter = 0;
             for (int cycle = 0; cycle < loops; cycle++) {
                 training_data.Shuffle();
                 for (int i = 0; i < training_data.Size; i += batchSize) {
-                    DataBatch batch = training_data.GetSmallBatch(i, batchSize);
-                    BatchTraining(batch);
+                    if (!isTraining) return;
+
                     counter += batchSize;
-                    delay_counter += batchSize;
-                    if (delay_counter >= delay_ticks) {
-                        UnityEngine.Debug.Log($"Training is {100 * (double) counter / size:F2}% Complete [{counter}/{size}]");
-                        await Task.Delay(1);
-                        delay_counter = 0;
-                    }
+                    bool breath = counter >= delay_ticks;
+                    await Train(training_data.GetSmallBatch(i, batchSize), breath);
+                    if (breath) counter = 0;
                 }
             }
-            UnityEngine.Debug.Log($"Training Complete.");
-
-            for (int i = 0; i < Network.LayerAmount; i++) {
-                UnityEngine.Debug.Log($"Weights[{i}]: {Network.Layers[i].Weights}");
-                UnityEngine.Debug.Log($"Bias[{i}]: {Network.Layers[i].Bias}");
-            }
-
+            isTraining = false;
+            
+            PrintMessage(ConsoleMessages.Finish);
+            DetailVisualization.Refresh();
         }
     }
 }
