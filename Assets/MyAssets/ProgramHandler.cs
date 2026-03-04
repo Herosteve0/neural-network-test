@@ -32,24 +32,7 @@ public class ProgramHandler : MonoBehaviour {
         if (Input.GetKeyDown(KeyCode.K)) CreateNetwork();
         if (Input.GetKeyDown(KeyCode.M)) Trainer.MNIST_RandomTraining(cycles);
         if (Input.GetKeyDown(KeyCode.Z)) Trainer.ForceStopTraining();
-        if (Input.GetKeyDown(KeyCode.S)) {
-            for (int i = 0; i < 500; i++) DetailVisualization.StoreLoss(i / 125f);
-            DetailVisualization.Refresh();
-        }
-        if (Input.GetKeyDown(KeyCode.D)) {
-            Vector a = new Vector(
-                new float[] { -0.3f, 0.1f, 0.7f, -0.6f }
-            );
-
-            Debug.Log("");
-            Data data = new Data(a, 0);
-            Trainer.SingleExampleTraining(data);
-
-            //for (int i = 0; i < Network.LayerAmount; i++) {
-            //    Debug.Log($"Layer {i}:\n Values {Network.Layers[i].Values}\n Activation {Network.Layers[i].Activation}");
-            //}
-        }
-
+        
         if (Input.GetKeyDown(KeyCode.X)) Trainer.TogglePause();
         if (Input.GetKeyDown(KeyCode.C)) Trainer.ToggleStep();
         if (Input.GetKeyDown(KeyCode.Space)) Trainer.DoStep();
@@ -93,19 +76,32 @@ public class ProgramHandler : MonoBehaviour {
     async Task LargeTest() {
         MNISTDatabase database = new MNISTDatabase("Assets/StreamingAssets/MNIST/t10k-images.idx3-ubyte", "Assets/StreamingAssets/MNIST/t10k-labels.idx1-ubyte");
 
+        List<Data> wrongs = new List<Data>();
+        List<int> wrong_labels = new List<int>();
+
         Debug.Log($"Started testing on {database.Size} test samples.");
         int a = 0;
         for (int i = 0; i < database.Size; i++) {
             Data TestingData = database.ReadBatch(1)[0];
             Vector result = Network.Calculate(TestingData.data);
-            if (result.MaxIndex() == TestingData.label) a++;
+
+            int guess = result.MaxIndex();
+            if (guess == TestingData.label) {
+                a++;
+            } else {
+                wrongs.Add(TestingData);
+                wrong_labels.Add(guess);
+            }
+
             if (i % 1000 == 0) {
-                Debug.Log($"Testing is {100 * (double) i / database.Size:F2}% Complete [{i}/{database.Size}]");
+                if (!disableMessages) Debug.Log($"Testing is {100 * (double) i / database.Size:F2}% Complete [{i}/{database.Size}]");
                 await Task.Delay(1);
             }
         }
         Debug.Log($"Testing complete with {(double)a / database.Size * 100}% accuracy. [{a}/{database.Size}]");
         database.CloseLoad();
+
+        Visualization.instance.DrawImages(wrongs.ToArray(), wrong_labels.ToArray());
     }
 
 

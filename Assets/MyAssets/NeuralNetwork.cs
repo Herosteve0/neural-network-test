@@ -1,8 +1,5 @@
 using System;
 using System.Numerics;
-using Unity.VisualScripting;
-using static UnityEngine.Rendering.DebugUI.Table;
-using UnityEngine.UIElements;
 
 namespace NeuralNetworkSystem {
     public class Layer {
@@ -11,6 +8,7 @@ namespace NeuralNetworkSystem {
         }
 
         Func<float, float> ActivationFunction = NeuralNetworkTrainer.ReLU;
+        Func<float, float> ActivationFunctionDerivative = NeuralNetworkTrainer.ReLUDerivative;
 
         public Layer(int size) {
             NeuronNum = size;
@@ -40,6 +38,23 @@ namespace NeuralNetworkSystem {
 
         public Layer PreviousLayer { get; protected set; }
         public Layer NextLayer { get; protected set; }
+
+
+
+
+
+
+        Func<Vector, Vector> InputNormalizationFunc;
+        Func<Vector, Vector> ForwardCalculationFunc;
+        Func<Vector, Vector> ForwardOutputFunc;
+
+        Func<Vector, Vector> BackwardDeltaFunc;
+        Func<Vector, Vector> BackwardWeightsFunc;
+        Func<Vector, Vector> BackwardsBiasFunc;
+
+        Func<Vector, Vector> AdjustWeightsFunc;
+        Func<Vector, Vector> AdjustBiasFunc;
+
 
         public virtual void Forward(Vector input) {
             CalculateValue(input);
@@ -100,7 +115,7 @@ namespace NeuralNetworkSystem {
 
                 // Sum * ReLU'(Z[row])
 
-                Delta.Data[row] = sum * NeuralNetworkTrainer.ReLUDerivative(Values.Data[row]);
+                Delta.Data[row] = sum * ActivationFunctionDerivative(Values.Data[row]);
                 //Delta.Data[row] = Values.Data[row] > 0f ? sum : 0f;
             }
 
@@ -146,13 +161,55 @@ namespace NeuralNetworkSystem {
                 BiasDelta.Data[col] += Delta.Data[col];
             }
         }
+
+        public virtual void AdjustWeight(ref Matrix WeightsDelta, float scale) {
+            if (Weights.Rows != WeightsDelta.Rows) throw new Exception("Weights and WeightsDelta don't have matching Rows!");
+            if (Weights.Columns != WeightsDelta.Columns) throw new Exception("Weights and WeightsDelta don't have matching Columns!");
+
+            int simd_width = Vector<float>.Count;
+            int length = Weights.Rows * Weights.Columns;
+
+            int i = 0;
+            for (; i <= length - simd_width; i += simd_width) {
+                var v_delta = new Vector<float>(WeightsDelta.Data, i);
+                v_delta *= scale;
+                var v = new Vector<float>(Weights.Data, i);
+                (v - v_delta).CopyTo(Weights.Data, i);
+            }
+            for (; i < length; i++) {
+                Weights.Data[i] -= WeightsDelta.Data[i] * scale;
+            }
+
+            for (int row = 0; row < WeightsT.Rows; row++) {
+                for (int col = 0; col < WeightsT.Columns; col++) {
+                    WeightsT[row, col] -= WeightsDelta[col, row] * scale;
+                }
+            }
+        }
+        public virtual void AdjustBias(ref Vector BiasDelta, float scale) {
+            if (Bias.Length != BiasDelta.Length) throw new Exception("Bias and BiasDelta don't have matching Lengths!");
+
+            int simd_width = Vector<float>.Count;
+            int length = Bias.Length;
+
+            int i = 0;
+            for (; i <= length - simd_width; i += simd_width) {
+                var v_delta = new Vector<float>(BiasDelta.Data, i);
+                v_delta *= scale;
+                var v = new Vector<float>(Bias.Data, i);
+                (v - v_delta).CopyTo(Bias.Data, i);
+            }
+            for (; i < length; i++) {
+                Bias.Data[i] -= BiasDelta.Data[i] * scale;
+            }
+        }
     }
 
     class InputLayer : Layer {
         public InputLayer(int size) : base(size) { }
 
         public override void Forward(Vector input) {
-            Activation = input;
+            Activation.Data = InputFunctions.NormalizeMedian(input.Data);
         }
     }
 
@@ -161,11 +218,21 @@ namespace NeuralNetworkSystem {
 
         public override void Forward(Vector input) {
             base.Forward(input);
-            Values.SoftMax(Activation);
+            Activation.Data = OutputFunctions.SoftMax(Values.Data);
         }
 
         public override void Backward(Vector CorrectValues) {
-            Vector.Sub(Activation, CorrectValues, Delta);
+            int simd_width = Vector<float>.Count;
+
+            int i = 0;
+            for (; i <= Delta.Length - simd_width; i += simd_width) {
+                var v_a = new Vector<float>(Activation.Data, i);
+                var v_b = new Vector<float>(CorrectValues.Data, i);
+                (v_a - v_b).CopyTo(Delta.Data, i);
+            }
+            for (; i < Delta.Length; i++) {
+                Delta.Data[i] = Activation[i] - CorrectValues[i];
+            }
         }
     }
 

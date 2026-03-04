@@ -66,24 +66,15 @@ namespace NeuralNetworkSystem {
         public int TrainingAmount { get; private set; }
 
         CancellationTokenSource canceltoken;
+        
 
-
-        public static Vector NormalizeInput(Vector v) {  // add Simd
-            float mean = 0.1307f;
-            float std = 0.3081f;
-
-            Vector R = new Vector(v.Length);
-            for (int i = 0; i < v.Length; i++) R[i] = (v[i] - mean) / std;
-            return R;
-        }
-
-
+        static float ReLU_con = 0.001f;
         public static float ReLU(float value) {
-            return value > 0 ? value : 0;
+            return value >= 0 ? value : 0;
         }
 
         public static float ReLUDerivative(float value) {
-            return value > 0 ? 1 : 0;
+            return value >= 0 ? 1 : 0;
         }
 
         public static float SoftMaxLoss(Vector V, int label) {
@@ -91,9 +82,7 @@ namespace NeuralNetworkSystem {
         }
 
         public float TrainingCalculations(Data TrainingData, ref Matrix[] WeightDelta, ref Vector[] BiasDelta) {
-            Vector input = NormalizeInput(TrainingData.data);
-            //Vector input = TrainingData.data;
-            Vector output = Network.Calculate(input); // all layers of the network have the values we want (inupt, value, activation)
+            Vector output = Network.Calculate(TrainingData.data); // all layers of the network have the values we want (inupt, value, activation)
 
             int length = Network.LayerAmount - 1;
 
@@ -138,14 +127,11 @@ namespace NeuralNetworkSystem {
             avg /= DataBatch.Size;
             DetailVisualization.StoreLoss(avg);
 
+            float scale = learning_rate / DataBatch.Size;
             for (int i = 1; i < Network.LayerAmount; i++) {
                 int l = i - 1;
-                WeightDelta[l].Scale(learning_rate / DataBatch.Size);
-                BiasDelta[l].Scale(learning_rate / DataBatch.Size);
-
-                Network.Layers[i].Weights.Sub(WeightDelta[l]);
-                Network.Layers[i].WeightsT.SubT(WeightDelta[l]);
-                Network.Layers[i].Bias.Sub(BiasDelta[l]);
+                Network.Layers[i].AdjustWeight(ref WeightDelta[l], scale);
+                Network.Layers[i].AdjustBias(ref BiasDelta[l], scale);
             }
         }
 
@@ -183,10 +169,11 @@ namespace NeuralNetworkSystem {
             DoStep,
         }
         void PrintMessage(ConsoleMessages type) {
-            if (ProgramHandler.instance.disableMessages) return;
             if (type == ConsoleMessages.Start) UnityEngine.Debug.Log($"Started training on {TrainingAmount} examples.");
-            else if (type == ConsoleMessages.Progress) UnityEngine.Debug.Log($"Training is {100 * (double)TrainingProgress / TrainingAmount:F2}% Complete [{TrainingProgress}/{TrainingAmount}]");
-            else if (type == ConsoleMessages.Finish) UnityEngine.Debug.Log($"Training Complete.");
+            else if (type == ConsoleMessages.Progress) {
+                if (ProgramHandler.instance.disableMessages) return;
+                UnityEngine.Debug.Log($"Training is {100 * (double)TrainingProgress / TrainingAmount:F2}% Complete [{TrainingProgress}/{TrainingAmount}]");
+            } else if (type == ConsoleMessages.Finish) UnityEngine.Debug.Log($"Training Complete.");
             else if (type == ConsoleMessages.ForceStop) UnityEngine.Debug.Log($"Force stopped training.");
             else if (type == ConsoleMessages.Pause) UnityEngine.Debug.Log((PausedTraining ? "Paused" : "Unpaused") + " training.");
             else if (type == ConsoleMessages.Step) UnityEngine.Debug.Log((StepTraining ? "Enabled" : "Disabled") + " step training.");

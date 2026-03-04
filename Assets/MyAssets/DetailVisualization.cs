@@ -1,6 +1,7 @@
 using NeuralNetworkSystem;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
 using static UnityEditor.Experimental.GraphView.GraphView;
 
@@ -28,7 +29,7 @@ public class DetailVisualization:MonoBehaviour {
     private void OnDisable() {
         if (points != null) {
             foreach (var go in points) {
-                Destroy(go);
+                DestroyImmediate(go);
             }
         }
     }
@@ -46,8 +47,28 @@ public class DetailVisualization:MonoBehaviour {
         instance.PrintDetails();
     }
 
+    static int compress_threshold = 2000;
+    static float compress_power = 4f;
     public static void StoreLoss(float loss) {
+        if (instance.Losses.Count == compress_threshold) CompressLosses();
         instance.Losses.Add(loss);
+    }
+
+    public static void CompressLosses() {
+        List<float> tmp = new List<float>();
+
+        List<float>.Enumerator listhander = instance.Losses.GetEnumerator();
+        for (int i = 0; i < instance.Losses.Count; i += 2) {
+            float value = 0f;
+            for (int j = 0; j < compress_power; j++) {
+                value += listhander.Current;
+                listhander.MoveNext();
+            }
+            tmp.Add(value / compress_power);
+        }
+
+        instance.Losses.Clear();
+        instance.Losses = tmp;
     }
 
     public static void ClearLosses() {
@@ -74,26 +95,27 @@ public class DetailVisualization:MonoBehaviour {
         network_details.text = txt;
     }
 
-    Vector2 PointPosition(int index, float loss, float max) {
+    Vector2 PointPosition(int index, float loss, float max, float min) {
         float offsetX = 1920 * (1 - multX);
         float offsetY = 1080 * (1 - multY);
 
         float x = offsetX + index * (LimitX * multX - offsetX * 0.25f) / (Losses.Count + 1);
 
         float y = offsetY;
-        if (max != 0) y += (LimitY * multY - offsetY * 2) * loss / max;
+        if (max != 0) y += (LimitY * multY - offsetY * 2) * (loss - min) / max;
 
         return new Vector2(x, y);
     }
     void GraphLoss() {
         if (points != null) {
             foreach (var point in points) {
-                Destroy(point);
+                DestroyImmediate(point);
             }
         }
 
         points = new GameObject[Losses.Count];
         float max = Mathf.Max(Losses.ToArray());
+        float min = Mathf.Min(Losses.ToArray());
         Vector2 prePos = Vector2.zero;
 
         Texture2D tex = new Texture2D(1, 1) {
@@ -104,7 +126,7 @@ public class DetailVisualization:MonoBehaviour {
 
         int index = 0;
         foreach (float loss in Losses) {
-            Vector2 pos = PointPosition(index, loss, max);
+            Vector2 pos = PointPosition(index, loss, max, min);
 
             points[index] = new GameObject("Loss Graph Points");
             points[index].transform.SetParent(transform);
@@ -142,7 +164,7 @@ public class DetailVisualization:MonoBehaviour {
         for (; i < use; i++) {
             float value = min + i * (max - min) / (use - 1);
             graph_numbers[i].text = value.ToString("F2");
-            Vector3 pos = PointPosition(0, value, max);
+            Vector3 pos = PointPosition(0, value, max, min);
             pos.x = 1920 * (1 - multX);
             graph_numbers[i].transform.position = pos;
             graph_numbers[i].enabled = true;

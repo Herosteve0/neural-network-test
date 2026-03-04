@@ -2,18 +2,8 @@ using System;
 using System.IO;
 
 using NeuralNetworkSystem;
-using Unity.VisualScripting;
 
 public class MNISTDatabase {
-
-    public BinaryReader br_images;
-    public BinaryReader br_labels;
-
-    public int Size;
-    public int Index;
-    public int Rows;
-    public int Cols;
-
     public static int ReadBigEndianInt(BinaryReader br) {
         byte[] bytes = br.ReadBytes(4);
         if (BitConverter.IsLittleEndian) Array.Reverse(bytes);
@@ -60,6 +50,15 @@ public class MNISTDatabase {
         MNISTDatabase database = new MNISTDatabase("Assets/StreamingAssets/MNIST/train-images.idx3-ubyte", "Assets/StreamingAssets/MNIST/train-labels.idx1-ubyte");
         return database.ReadBatch(database.Size);
     }
+
+
+    readonly BinaryReader br_images;
+    readonly BinaryReader br_labels;
+
+    public int Size;
+    public int Index;
+    public int Rows;
+    public int Cols;
 
     public MNISTDatabase(string image_path, string label_path) {
         br_images = new BinaryReader(File.OpenRead(image_path));

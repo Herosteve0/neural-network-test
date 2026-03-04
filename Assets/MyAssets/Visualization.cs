@@ -308,7 +308,36 @@ public class Visualization: MonoBehaviour {
 
 
     public GameObject[] images;
+    public GameObject[] wrong_images;
 
+
+    public void DrawImages(Data[] data, int[] guess) {
+        Texture2D[] texture = new Texture2D[data.Length];
+
+        for (int i = 0; i < wrong_images.Length; i++) {
+            Destroy(wrong_images[i]);
+        }
+
+        wrong_images = new GameObject[texture.Length];
+
+        for (int k = 0; k < texture.Length; k++) {
+            texture[k] = new Texture2D(28, 28);
+            for (int i = 0; i < 28; i++) {
+                for (int j = 0; j < 28; j++) {
+                    float weight = data[k].data[28 * i + j];
+                    Color c = new Color(Math.Max(weight / -1f, 0f), 0f, Math.Max(weight / 1f, 0f), 1f);
+                    texture[k].SetPixel(j, 27 - i, c);
+                }
+            }
+            texture[k].filterMode = FilterMode.Point;
+            texture[k].Apply();
+            wrong_images[k] = new GameObject($"Guess {data[k].label} as {guess[k]}");
+            wrong_images[k].transform.SetParent(transform, false);
+            wrong_images[k].AddComponent<RawImage>().enabled = false;
+            wrong_images[k].GetComponent<RawImage>().texture = texture[k];
+            wrong_images[k].GetComponent<RectTransform>().sizeDelta = new Vector2(28, 28);
+        }
+    }
     public void WeightToImage() {
         NeuralNetwork network = ProgramHandler.instance.Network;
         Texture2D[] texture = new Texture2D[network.LayerLength[1]];
@@ -332,12 +361,18 @@ public class Visualization: MonoBehaviour {
             texture[k].Apply();
             images[k] = new GameObject($"Image {k}");
             images[k].transform.SetParent(transform, false);
-            images[k].AddComponent<RawImage>().texture = texture[k];
+            images[k].AddComponent<RawImage>().enabled = false;
+            images[k].GetComponent<RawImage>().texture = texture[k];
             images[k].GetComponent<RectTransform>().sizeDelta = new Vector2(28, 28);
         }
     }
 
     public void WeightDiffToImage() {
+        if (images == null) {
+            WeightToImage();
+            return; 
+        }
+
         NeuralNetwork network = ProgramHandler.instance.Network;
         Texture2D[] texture = new Texture2D[network.LayerLength[1]];
 
@@ -354,19 +389,8 @@ public class Visualization: MonoBehaviour {
             }
             texture[k].filterMode = FilterMode.Point;
             texture[k].Apply();
-        }
 
-        for (int i = 0; i < images.Length; i++) {
-            Destroy(images[i]);
-        }
-
-        images = new GameObject[texture.Length];
-
-        for (int i = 0; i < images.Length; i++) {
-            images[i] = new GameObject($"Image {i}");
-            images[i].transform.SetParent(transform, false);
-            images[i].AddComponent<RawImage>().texture = texture[i];
-            images[i].GetComponent<RectTransform>().sizeDelta = new Vector2(28, 28);
+            images[k].GetComponent<RawImage>().texture = texture[k];
         }
     }
 }
