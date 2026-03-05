@@ -1,11 +1,7 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEditor;
-using static UnityEditor.Experimental.AssetDatabaseExperimental.AssetDatabaseCounters;
 
 namespace NeuralNetworkSystem {
     public struct Data {
@@ -42,8 +38,9 @@ namespace NeuralNetworkSystem {
     }
 
     public class NeuralNetworkTrainer {
-        public NeuralNetworkTrainer(NeuralNetwork network, float learning_rate = 0.075f, int batchSize = 100, int cycles = 5) {
+        public NeuralNetworkTrainer(NeuralNetwork network, LossCalculation loss_function, float learning_rate = 0.075f, int batchSize = 100, int cycles = 5) {
             Network = network;
+            LossFunction = loss_function;
             this.batchSize = batchSize;
             this.cycles = cycles;
             this.learning_rate = learning_rate;
@@ -54,6 +51,7 @@ namespace NeuralNetworkSystem {
         }
 
         NeuralNetwork Network { get; }
+        LossCalculation LossFunction { get; }
         public float learning_rate { get; }
         public int batchSize { get; }
         public int cycles { get; }
@@ -68,26 +66,13 @@ namespace NeuralNetworkSystem {
         CancellationTokenSource canceltoken;
         
 
-        static float ReLU_con = 0.001f;
-        public static float ReLU(float value) {
-            return value >= 0 ? value : 0;
-        }
-
-        public static float ReLUDerivative(float value) {
-            return value >= 0 ? 1 : 0;
-        }
-
-        public static float SoftMaxLoss(Vector V, int label) {
-            return -UnityEngine.Mathf.Log(V[label]);
-        }
-
         public float TrainingCalculations(Data TrainingData, ref Matrix[] WeightDelta, ref Vector[] BiasDelta) {
             Vector output = Network.Calculate(TrainingData.data); // all layers of the network have the values we want (inupt, value, activation)
 
             int length = Network.LayerAmount - 1;
 
             Vector Y = Vector.SingleValue(Network.LayerLength[length], TrainingData.label);
-            float Loss = SoftMaxLoss(output, TrainingData.label);
+            float Loss = LossFunction(output.Data, TrainingData.label);
 
             int simd_width = Vector<float>.Count;
 

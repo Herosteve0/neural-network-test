@@ -1,17 +1,34 @@
 using UnityEngine;
-
+using System;
 using NeuralNetworkSystem;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
 public class ProgramHandler : MonoBehaviour {
-    
+
+    [SerializeField] ForwardFunctionsTypes forward_function = ForwardFunctionsTypes.Parallel;
+
+    [SerializeField] BackwardFunctionsTypes backward_function = BackwardFunctionsTypes.Parallel;
+    [SerializeField] BackwardOutputFunctionsTypes backward_output_function = BackwardOutputFunctionsTypes.Parallel;
+    [SerializeField] BackwardWeightsFunctionsTypes backward_weight_function = BackwardWeightsFunctionsTypes.Parallel;
+    [SerializeField] BackwardBiasFunctionsTypes backward_bias_function = BackwardBiasFunctionsTypes.Parallel;
+
+    [SerializeField] AdjustWeightsFunctionsTypes adjust_weights_function = AdjustWeightsFunctionsTypes.Parallel;
+    [SerializeField] AdjustBiasFunctionsTypes adjust_bias_function = AdjustBiasFunctionsTypes.Parallel;
+
+    [SerializeField] InputNormalizationFunctionsType input_normalization = InputNormalizationFunctionsType.NormalizeMeadian;
+    [SerializeField] OutputFunctionsType output_activation = OutputFunctionsType.SoftMax;
+
+    [SerializeField] ActivationFunctionsTypes activation_function = ActivationFunctionsTypes.ReLU;
+    [SerializeField] LossFunctionsType loss_function = LossFunctionsType.SoftMax;
+
+
     public NeuralNetwork Network;
     public NeuralNetworkTrainer Trainer;
-    
+
     [SerializeField] float learning_rate = 0.075f;
     [SerializeField] int batchSize = 100;
-    [SerializeField] int cycles = 5;
+    [SerializeField] int cycles = 1;
     [SerializeField] int seed = 5000;
 
     public bool disableMessages = true;
@@ -109,12 +126,16 @@ public class ProgramHandler : MonoBehaviour {
     async void CreateNetwork() {
         Debug.Log("New Network created.");
         int[] layers = { 784, 128, 64, 10 };
-        //int[] layers = { 4, 3, 2 };
 
         UnityEngine.Random.InitState(seed);
-        Network = new NeuralNetwork(layers);
+        Network = new NeuralNetwork(layers, 
+            FunctionManager.GetFunctions(
+                forward_function, input_normalization, output_activation,
+                backward_function, backward_output_function, backward_weight_function, backward_bias_function,
+                adjust_weights_function, adjust_bias_function, activation_function)
+            );
 
-        Trainer = new NeuralNetworkTrainer(Network, learning_rate, batchSize, cycles);
+        Trainer = new NeuralNetworkTrainer(Network, FunctionManager.GetLossFunction(loss_function), learning_rate, batchSize, cycles);
 
         await Task.Delay(1);
         DetailVisualization.Initialize(Network, Trainer);

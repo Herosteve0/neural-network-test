@@ -1,7 +1,219 @@
 using System;
 using System.Numerics;
+using Unity.VisualScripting.Antlr3.Runtime;
+//using System.Runtime.Instricts;
+//using System.Runtime.Instricts.x86;
 
 namespace NeuralNetworkSystem {
+    public delegate float[] InputNormalization(float[] input);
+    public delegate float[] OutputActivation(float[] input);
+    public delegate float LossCalculation(float[] V, int label);
+
+    public delegate void ForwardPass(Layer layer, Func<float, float> ActivationFunc, Vector input);
+
+    public delegate void BackwardDelta(Layer layer, Func<float, float> ActivationFuncDer);
+    public delegate void BackwardOutputDelta(Layer layer, Vector CorrectValues);
+    public delegate void BackwardDeltaWeights(Layer layer, ref Matrix WeightDelta);
+    public delegate void BackwardDeltaBias(Layer layer, ref Vector BiasDelta);
+
+    public delegate void AdjustmentWeights(Layer layer, ref Matrix WeightsDelta, float scale);
+    public delegate void AdjustmentBias(Layer layer, ref Vector BiasDelta, float scale);
+
+    public struct LayerFunctions {
+        public ForwardPass forward;
+        public InputNormalization normalization;
+        public OutputActivation output_activation;
+
+        public BackwardDelta backward_delta;
+        public BackwardOutputDelta backward_output_delta;
+        public BackwardDeltaWeights backward_delta_weights;
+        public BackwardDeltaBias backward_delta_bias;
+
+        public AdjustmentWeights adjustment_weights;
+        public AdjustmentBias adjustment_bias;
+
+        public Func<float, float> activation_function;
+        public Func<float, float> activation_function_derivative;
+
+        public LayerFunctions(
+            ForwardPass forward,
+            InputNormalization normalization,
+            OutputActivation output_activation,
+
+            BackwardDelta backward_delta,
+            BackwardOutputDelta backward_output_delta,
+            BackwardDeltaWeights backward_delta_weights,
+            BackwardDeltaBias backward_delta_bias,
+
+            AdjustmentWeights adjustment_weights,
+            AdjustmentBias adjustment_bias,
+
+            Func<float, float> activation_function,
+            Func<float, float> activation_function_derivative
+            ) {
+
+            this.forward = forward;
+            this.normalization = normalization;
+            this.output_activation = output_activation;
+
+            this.backward_delta = backward_delta;
+            this.backward_output_delta = backward_output_delta;
+            this.backward_delta_weights = backward_delta_weights;
+            this.backward_delta_bias = backward_delta_bias;
+
+            this.adjustment_weights = adjustment_weights;
+            this.adjustment_bias = adjustment_bias;
+
+            this.activation_function = activation_function;
+            this.activation_function_derivative = activation_function_derivative;
+        }
+    }
+
+    public class FunctionManager {
+        public static Func<float, float> GetActivationFunction(ActivationFunctionsTypes type) {
+            switch (type) {
+                case ActivationFunctionsTypes.Sigmoid: return ActivationFunctions.Sigmoid;
+                case ActivationFunctionsTypes.ReLU: return ActivationFunctions.ReLU;
+            }
+            return null;
+        }
+        public static Func<float, float> GetActivationDerivativeFunction(ActivationFunctionsTypes type) {
+            switch (type) {
+                case ActivationFunctionsTypes.Sigmoid: return ActivationFunctions.SigmoidDerivative;
+                case ActivationFunctionsTypes.ReLU: return ActivationFunctions.ReLUDerivative;
+            }
+            return null;
+        }
+        public static InputNormalization GetInputNormalizationFunction(InputNormalizationFunctionsType type) {
+            switch (type) {
+                case InputNormalizationFunctionsType.Normalize: return InputNormalizationFunctions.Normalize;
+                case InputNormalizationFunctionsType.NormalizeMeadian: return InputNormalizationFunctions.NormalizeMedian;
+            }
+            return null;
+        }
+        public static OutputActivation GetOutputFunction(OutputFunctionsType type) {
+            switch (type) {
+                case OutputFunctionsType.SoftMax: return OutputFunctions.SoftMax;
+            }
+            return null;
+        }
+        public static LossCalculation GetLossFunction(LossFunctionsType type) {
+            switch (type) {
+                case LossFunctionsType.Mean: return LossFunctions.Mean;
+                case LossFunctionsType.SoftMax: return LossFunctions.SoftMax;
+            }
+            return null;
+        }
+
+
+        public static ForwardPass GetForwardFunction(ForwardFunctionsTypes type) {
+            switch (type) {
+                case ForwardFunctionsTypes.Educational: return EducationalFunctions.CalculateValue;
+                case ForwardFunctionsTypes.Scalar: return ScalarFunctions.CalculateValue;
+                case ForwardFunctionsTypes.Parallel: return ParallelFunctions.CalculateValue;
+                case ForwardFunctionsTypes.SSE: return SSEFunctions.CalculateValue;
+                case ForwardFunctionsTypes.AVX: return AVXFunctions.CalculateValue;
+            }
+            return null;
+        }
+
+        public static BackwardDelta GetBackwardFunction(BackwardFunctionsTypes type) {
+            switch (type) {
+                case BackwardFunctionsTypes.Educational: return EducationalFunctions.Backward;
+                case BackwardFunctionsTypes.Scalar: return ScalarFunctions.Backward;
+                case BackwardFunctionsTypes.Parallel: return ParallelFunctions.Backward;
+                case BackwardFunctionsTypes.SSE: return SSEFunctions.Backward;
+                case BackwardFunctionsTypes.AVX: return AVXFunctions.Backward;
+            }
+            return null;
+        }
+        public static BackwardOutputDelta GetBackwardOutputFunction(BackwardOutputFunctionsTypes type) {
+            switch (type) {
+                case BackwardOutputFunctionsTypes.Educational: return EducationalFunctions.BackwardOutput;
+                case BackwardOutputFunctionsTypes.Scalar: return ScalarFunctions.BackwardOutput;
+                case BackwardOutputFunctionsTypes.Parallel: return ParallelFunctions.BackwardOutput;
+                case BackwardOutputFunctionsTypes.SSE: return SSEFunctions.BackwardOutput;
+                case BackwardOutputFunctionsTypes.AVX: return AVXFunctions.BackwardOutput;
+            }
+            return null;
+        }
+        public static BackwardDeltaWeights GetBackwardWeightsFunction(BackwardWeightsFunctionsTypes type) {
+            switch (type) {
+                case BackwardWeightsFunctionsTypes.Educational: return EducationalFunctions.BackwardWeights;
+                case BackwardWeightsFunctionsTypes.Scalar: return ScalarFunctions.BackwardWeights;
+                case BackwardWeightsFunctionsTypes.Parallel: return ParallelFunctions.BackwardWeights;
+                case BackwardWeightsFunctionsTypes.SSE: return SSEFunctions.BackwardWeights;
+                case BackwardWeightsFunctionsTypes.AVX: return AVXFunctions.BackwardWeights;
+            }
+            return null;
+        }
+        public static BackwardDeltaBias GetBackwardBiasFunction(BackwardBiasFunctionsTypes type) {
+            switch (type) {
+                case BackwardBiasFunctionsTypes.Educational: return EducationalFunctions.BackwardBias;
+                case BackwardBiasFunctionsTypes.Scalar: return ScalarFunctions.BackwardBias;
+                case BackwardBiasFunctionsTypes.Parallel: return ParallelFunctions.BackwardBias;
+                case BackwardBiasFunctionsTypes.SSE: return SSEFunctions.BackwardBias;
+                case BackwardBiasFunctionsTypes.AVX: return AVXFunctions.BackwardBias;
+            }
+            return null;
+        }
+
+        public static AdjustmentWeights GetAdjustWeightsFunction(AdjustWeightsFunctionsTypes type) {
+            switch (type) {
+                case AdjustWeightsFunctionsTypes.Educational: return EducationalFunctions.AdjustWeights;
+                case AdjustWeightsFunctionsTypes.Scalar: return ScalarFunctions.AdjustWeights;
+                case AdjustWeightsFunctionsTypes.Parallel: return ParallelFunctions.AdjustWeights;
+                case AdjustWeightsFunctionsTypes.SSE: return SSEFunctions.AdjustWeights;
+                case AdjustWeightsFunctionsTypes.AVX: return AVXFunctions.AdjustWeights;
+            }
+            return null;
+        }
+        public static AdjustmentBias GetAdjustBiasFunction(AdjustBiasFunctionsTypes type) {
+            switch (type) {
+                case AdjustBiasFunctionsTypes.Educational: return EducationalFunctions.AdjustBias;
+                case AdjustBiasFunctionsTypes.Scalar: return ScalarFunctions.AdjustBias;
+                case AdjustBiasFunctionsTypes.Parallel: return ParallelFunctions.AdjustBias;
+                case AdjustBiasFunctionsTypes.SSE: return SSEFunctions.AdjustBias;
+                case AdjustBiasFunctionsTypes.AVX: return AVXFunctions.AdjustBias;
+            }
+            return null;
+        }
+
+
+        public static LayerFunctions GetFunctions(
+                ForwardFunctionsTypes forward,
+                InputNormalizationFunctionsType normalization,
+                OutputFunctionsType output_activation,
+
+                BackwardFunctionsTypes backward_delta,
+                BackwardOutputFunctionsTypes backward_output_delta,
+                BackwardWeightsFunctionsTypes backward_delta_weights,
+                BackwardBiasFunctionsTypes backward_delta_bias,
+
+                AdjustWeightsFunctionsTypes adjustment_weights,
+                AdjustBiasFunctionsTypes adjustment_bias,
+
+                ActivationFunctionsTypes activation_function
+            ) {
+            return new LayerFunctions(
+                GetForwardFunction(forward),
+                GetInputNormalizationFunction(normalization),
+                GetOutputFunction(output_activation),
+
+                GetBackwardFunction(backward_delta),
+                GetBackwardOutputFunction(backward_output_delta),
+                GetBackwardWeightsFunction(backward_delta_weights),
+                GetBackwardBiasFunction(backward_delta_bias),
+
+                GetAdjustWeightsFunction(adjustment_weights),
+                GetAdjustBiasFunction(adjustment_bias),
+
+                GetActivationFunction(activation_function),
+                GetActivationDerivativeFunction(activation_function)
+                );
+        }
+    }
+
     public enum ActivationFunctionsTypes {
         Sigmoid,
         ReLU
@@ -26,11 +238,11 @@ namespace NeuralNetworkSystem {
         }
     }
 
-    public enum InputFunctionsType {
+    public enum InputNormalizationFunctionsType {
         Normalize,
         NormalizeMeadian
     }
-    public abstract class InputFunctions {
+    public abstract class InputNormalizationFunctions {
         public static float[] Normalize(float[] input) {
             int simd_width = Vector<float>.Count;
 
@@ -115,43 +327,56 @@ namespace NeuralNetworkSystem {
             return a * a;
         }
 
-        public static float SoftMax(Vector V, int label) {
+        public static float SoftMax(float[] V, int label) {
             return -UnityEngine.Mathf.Log(V[label]);
         }
     }
 
     public enum ForwardFunctionsTypes {
-        Simple,
+        Educational,
+        Scalar,
         Parallel,
         SSE,
         AVX
     }
     public enum BackwardFunctionsTypes {
-        Simple,
+        Educational,
+        Scalar,
+        Parallel,
+        SSE,
+        AVX
+    }
+    public enum BackwardOutputFunctionsTypes {
+        Educational,
+        Scalar,
         Parallel,
         SSE,
         AVX
     }
     public enum BackwardWeightsFunctionsTypes {
-        Simple,
+        Educational,
+        Scalar,
         Parallel,
         SSE,
         AVX
     }
     public enum BackwardBiasFunctionsTypes {
-        Simple,
+        Educational,
+        Scalar,
         Parallel,
         SSE,
         AVX
     }
-    public enum AdjustdWeightsFunctionsTypes {
-        Simple,
+    public enum AdjustWeightsFunctionsTypes {
+        Educational,
+        Scalar,
         Parallel,
         SSE,
         AVX
     }
     public enum AdjustBiasFunctionsTypes {
-        Simple,
+        Educational,
+        Scalar,
         Parallel,
         SSE,
         AVX
@@ -202,6 +427,20 @@ namespace NeuralNetworkSystem {
 
             layer.Delta.Data = (layer.NextLayer.WeightsT * layer.NextLayer.Delta).ElementMultiplication(layer.Values.Map(ActivationFuncDer)).Data;
         }
+        public static void BackwardOutput(Layer layer, Vector CorrectValues) {
+
+            /*
+            
+            D[L] = A[L] - Y
+
+            Since the last layer does not have a layer to be compared to and we need to start the chain somehow, we use the correct answer (Y)
+            as a reference to say "This answer in a perfect world looks like this". This value is directly tied to the Loss.
+            Realistically, the Loss will never be a true 0, since that'd mean it only recognizes that answer, but the lowest it can get, the better.
+
+            */
+
+            layer.Delta.Data = (layer.Activation - CorrectValues).Data;
+        }
         public static void BackwardWeights(Layer layer, ref Matrix WeightDelta) {
 
             /*
@@ -232,7 +471,7 @@ namespace NeuralNetworkSystem {
             BiasDelta += layer.Delta;
         }
 
-        public static void AdjustWeight(Layer layer, ref Matrix WeightsDelta, float scale) {
+        public static void AdjustWeights(Layer layer, ref Matrix WeightsDelta, float scale) {
 
             /*
             
@@ -262,6 +501,80 @@ namespace NeuralNetworkSystem {
             layer.Bias -= BiasDelta * scale;
         }
     }
+    public abstract class ScalarFunctions {
+        public static void CalculateValue(Layer layer, Func<float, float> ActivationFunc, Vector input) {
+            int Rows = layer.Values.Length;
+            int Columns = layer.Weights.Columns;
+
+            for (int row = 0; row < Rows; row++) {
+                layer.Values[row] = layer.Bias[row];
+
+                for (int col = 0; col < Columns; col++) {
+                    layer.Values[row] += layer.Weights[row, col] * input[col];
+                }
+
+                layer.Activation[row] = ActivationFunc(layer.Values[row]);
+            }
+        }
+
+        public static void Backward(Layer layer, Func<float, float> ActivationFuncDer) {
+            int Rows = layer.Delta.Length;
+            int Columns = layer.WeightsT.Columns;
+
+            for (int row = 0; row < Rows; row++) {
+                layer.Delta[row] = 0f;
+
+                for (int col = 0; col < Columns; col++) {
+                    layer.Delta[row] += layer.NextLayer.WeightsT[row, col] * layer.NextLayer.Delta[col];
+                }
+
+                layer.Delta[row] *= ActivationFuncDer(layer.Values[row]);
+            }
+        }
+        public static void BackwardOutput(Layer layer, Vector CorrectValues) {
+            int Rows = layer.Activation.Length;
+
+            for (int row = 0; row < Rows; row++) {
+                layer.Delta[row] = layer.Activation[row] - CorrectValues[row];
+            }
+        }
+        public static void BackwardWeights(Layer layer, ref Matrix WeightDelta) {
+            int Rows = layer.Delta.Length;
+            int Columns = layer.Activation.Length;
+
+            for (int row = 0; row < Rows; row++) {
+                for (int col = 0; col < Columns; col++) {
+                    WeightDelta[row, col] += layer.Delta[row] * layer.Activation[col];
+                }
+            }
+        }
+        public static void BackwardBias(Layer layer, ref Vector BiasDelta) {
+            int Rows = layer.Delta.Length;
+
+            for (int row = 0; row < Rows; row++) {
+                BiasDelta[row] += layer.Delta[row];
+            }
+        }
+
+        public static void AdjustWeights(Layer layer, ref Matrix WeightsDelta, float scale) {
+            int Rows = WeightsDelta.Rows;
+            int Columns = WeightsDelta.Columns;
+
+            for (int row = 0; row < Rows; row++) {
+                for (int col = 0; col < Columns; col++) {
+                    layer.Weights[row, col] -= WeightsDelta[row, col] * scale;
+                    layer.WeightsT[col, row] -= WeightsDelta[col, row] * scale;
+                }
+            }
+        }
+        public static void AdjustBias(Layer layer, ref Vector BiasDelta, float scale) {
+            int Rows = layer.Bias.Length;
+
+            for (int row = 0; row < Rows; row++) {
+                layer.Bias[row] -= BiasDelta[row];
+            }
+        }
+    }
     public abstract class ParallelFunctions {
         public static void CalculateValue(Layer layer, Func<float, float> ActivationFunc, Vector input) {
             int simd_width = Vector<float>.Count;
@@ -288,7 +601,7 @@ namespace NeuralNetworkSystem {
             }
         }
 
-        public static void Backward(Layer layer, Func<float, float> ActivationFuncDer, Vector CorrectValues) { // input only used in output layer
+        public static void Backward(Layer layer, Func<float, float> ActivationFuncDer) { // input only used in output layer
             int simd_width = Vector<float>.Count; // 8
 
             // Weight is transposed, so rows and columns are reversed.
@@ -316,6 +629,21 @@ namespace NeuralNetworkSystem {
                 // Sum * ReLU'(Z[row])
 
                 layer.Delta.Data[row] = sum * ActivationFuncDer(layer.Values.Data[row]);
+            }
+        }
+        public static void BackwardOutput(Layer layer, Vector CorrectValues) {
+            int simd_width = Vector<float>.Count;
+
+            int Rows = layer.Activation.Length;
+
+            int i = 0;
+            for (; i <= Rows - simd_width; i += simd_width) {
+                var v_a = new Vector<float>(layer.Activation.Data, i);
+                var v_b = new Vector<float>(CorrectValues.Data, i);
+                (v_a - v_b).CopyTo(layer.Delta.Data, i);
+            }
+            for (; i < Rows; i++) {
+                layer.Delta.Data[i] = layer.Activation[i] - CorrectValues[i];
             }
         }
         public static void BackwardWeights(Layer layer, ref Matrix WeightDelta) {
@@ -359,7 +687,7 @@ namespace NeuralNetworkSystem {
             }
         }
 
-        public static void AdjustWeight(Layer layer, ref Matrix WeightsDelta, float scale) {
+        public static void AdjustWeights(Layer layer, ref Matrix WeightsDelta, float scale) {
             if (layer.Weights.Rows != WeightsDelta.Rows) throw new Exception("Weights and WeightsDelta don't have matching Rows!");
             if (layer.Weights.Columns != WeightsDelta.Columns) throw new Exception("Weights and WeightsDelta don't have matching Columns!");
 
@@ -402,9 +730,26 @@ namespace NeuralNetworkSystem {
         }
     }
     public abstract class SSEFunctions {
+        public static void CalculateValue(Layer layer, Func<float, float> ActivationFunc, Vector input) { }
 
+        public static void Backward(Layer layer, Func<float, float> ActivationFuncDer) { }
+        public static void BackwardOutput(Layer layer, Vector CorrectValues) { }
+        public static void BackwardWeights(Layer layer, ref Matrix WeightDelta) { }
+        public static void BackwardBias(Layer layer, ref Vector BiasDelta) { }
+
+        public static void AdjustWeights(Layer layer, ref Matrix WeightsDelta, float scale) { }
+        public static void AdjustBias(Layer layer, ref Vector BiasDelta, float scale) { }
     }
     public abstract class AVXFunctions {
+        public static void CalculateValue(Layer layer, Func<float, float> ActivationFunc, Vector input) { }
+
+        public static void Backward(Layer layer, Func<float, float> ActivationFuncDer) { }
+        public static void BackwardOutput(Layer layer, Vector CorrectValues) { }
+        public static void BackwardWeights(Layer layer, ref Matrix WeightDelta) { }
+        public static void BackwardBias(Layer layer, ref Vector BiasDelta) { }
+
+        public static void AdjustWeights(Layer layer, ref Matrix WeightsDelta, float scale) { }
+        public static void AdjustBias(Layer layer, ref Vector BiasDelta, float scale) { }
 
     }
 }
