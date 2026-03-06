@@ -86,7 +86,7 @@ namespace NeuralNetworkSystem {
         }
         public static InputNormalization GetInputNormalizationFunction(InputNormalizationFunctionsType type) {
             switch (type) {
-                case InputNormalizationFunctionsType.Normalize: return InputNormalizationFunctions.Normalize;
+                case InputNormalizationFunctionsType.None: return InputNormalizationFunctions.None;
                 case InputNormalizationFunctionsType.NormalizeMeadian: return InputNormalizationFunctions.NormalizeMedian;
             }
             return null;
@@ -239,27 +239,12 @@ namespace NeuralNetworkSystem {
     }
 
     public enum InputNormalizationFunctionsType {
-        Normalize,
+        None,
         NormalizeMeadian
     }
     public abstract class InputNormalizationFunctions {
-        public static float[] Normalize(float[] input) {
-            int simd_width = Vector<float>.Count;
-
-            float[] r = new float[input.Length];
-
-            float scale = 1 / 255f;
-
-            int i = 0;
-            for (; i <= input.Length - simd_width; i += simd_width) {
-                var v = new Vector<float>(input, i);
-                (v * scale).CopyTo(r, i);
-            }
-            for (; i < input.Length; i++) {
-                r[i] *= scale;
-            }
-
-            return r;
+        public static float[] None(float[] input) {
+            return input;
         }
 
         public static float[] NormalizeMedian(float[] input) {
@@ -323,7 +308,7 @@ namespace NeuralNetworkSystem {
     }
     public abstract class LossFunctions {
         public static float Mean(float[] V, int label) {
-            float a = V[label] - 1;
+            float a = V[label] - 1f;
             return a * a;
         }
 
@@ -519,7 +504,7 @@ namespace NeuralNetworkSystem {
 
         public static void Backward(Layer layer, Func<float, float> ActivationFuncDer) {
             int Rows = layer.Delta.Length;
-            int Columns = layer.WeightsT.Columns;
+            int Columns = layer.NextLayer.WeightsT.Columns;
 
             for (int row = 0; row < Rows; row++) {
                 layer.Delta[row] = 0f;
@@ -540,11 +525,11 @@ namespace NeuralNetworkSystem {
         }
         public static void BackwardWeights(Layer layer, ref Matrix WeightDelta) {
             int Rows = layer.Delta.Length;
-            int Columns = layer.Activation.Length;
+            int Columns = layer.PreviousLayer.Activation.Length;
 
             for (int row = 0; row < Rows; row++) {
                 for (int col = 0; col < Columns; col++) {
-                    WeightDelta[row, col] += layer.Delta[row] * layer.Activation[col];
+                    WeightDelta[row, col] += layer.Delta[row] * layer.PreviousLayer.Activation[col];
                 }
             }
         }
@@ -563,15 +548,15 @@ namespace NeuralNetworkSystem {
             for (int row = 0; row < Rows; row++) {
                 for (int col = 0; col < Columns; col++) {
                     layer.Weights[row, col] -= WeightsDelta[row, col] * scale;
-                    layer.WeightsT[col, row] -= WeightsDelta[col, row] * scale;
+                    layer.WeightsT[col, row] -= WeightsDelta[row, col] * scale;
                 }
             }
         }
         public static void AdjustBias(Layer layer, ref Vector BiasDelta, float scale) {
-            int Rows = layer.Bias.Length;
+            int Rows = BiasDelta.Length;
 
             for (int row = 0; row < Rows; row++) {
-                layer.Bias[row] -= BiasDelta[row];
+                layer.Bias[row] -= BiasDelta[row] * scale;
             }
         }
     }

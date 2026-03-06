@@ -3,6 +3,7 @@ using System;
 using NeuralNetworkSystem;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using UnityEditor.ShaderGraph.Internal;
 
 public class ProgramHandler : MonoBehaviour {
 
@@ -54,6 +55,12 @@ public class ProgramHandler : MonoBehaviour {
         if (Input.GetKeyDown(KeyCode.C)) Trainer.ToggleStep();
         if (Input.GetKeyDown(KeyCode.Space)) Trainer.DoStep();
 
+        if (Input.GetKeyDown(KeyCode.A)) {
+            Data data = MNISTDatabase.LoadAllTrainingData()[0];
+            Trainer.SingleExampleTraining(data);
+            DetailVisualization.Refresh();
+        }
+
         if (Input.GetKeyDown(KeyCode.V)) {
             DetailVisualization.ClearLosses();
             DetailVisualization.Refresh();
@@ -62,7 +69,7 @@ public class ProgramHandler : MonoBehaviour {
         //if (Input.GetKeyDown(KeyCode.Space)) {
         //    if (Input.GetKey(KeyCode.LeftShift)) Test(true);
         //}
-        if (Input.GetKeyDown(KeyCode.N)) LargeTest();
+        if (Input.GetKeyDown(KeyCode.N)) Trainer.MINST_Test();
         if (Input.GetKeyDown(KeyCode.B)) {
             if (Input.GetKey(KeyCode.LeftShift)) Visualization.instance.WeightDiffToImage();
             else Visualization.instance.WeightToImage();
@@ -90,42 +97,12 @@ public class ProgramHandler : MonoBehaviour {
         Visualization.Focus(vars.layer, vars.index);
     }
 
-    async Task LargeTest() {
-        MNISTDatabase database = new MNISTDatabase("Assets/StreamingAssets/MNIST/t10k-images.idx3-ubyte", "Assets/StreamingAssets/MNIST/t10k-labels.idx1-ubyte");
-
-        List<Data> wrongs = new List<Data>();
-        List<int> wrong_labels = new List<int>();
-
-        Debug.Log($"Started testing on {database.Size} test samples.");
-        int a = 0;
-        for (int i = 0; i < database.Size; i++) {
-            Data TestingData = database.ReadBatch(1)[0];
-            Vector result = Network.Calculate(TestingData.data);
-
-            int guess = result.MaxIndex();
-            if (guess == TestingData.label) {
-                a++;
-            } else {
-                wrongs.Add(TestingData);
-                wrong_labels.Add(guess);
-            }
-
-            if (i % 1000 == 0) {
-                if (!disableMessages) Debug.Log($"Testing is {100 * (double) i / database.Size:F2}% Complete [{i}/{database.Size}]");
-                await Task.Delay(1);
-            }
-        }
-        Debug.Log($"Testing complete with {(double)a / database.Size * 100}% accuracy. [{a}/{database.Size}]");
-        database.CloseLoad();
-
-        Visualization.instance.DrawImages(wrongs.ToArray(), wrong_labels.ToArray());
-    }
-
-
 
     async void CreateNetwork() {
         Debug.Log("New Network created.");
         int[] layers = { 784, 128, 64, 10 };
+
+        if (Network != null) Trainer.ForceStopTraining();
 
         UnityEngine.Random.InitState(seed);
         Network = new NeuralNetwork(layers, 

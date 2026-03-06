@@ -1,9 +1,9 @@
 using NeuralNetworkSystem;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using UnityEngine;
-using UnityEngine.Rendering;
 using UnityEngine.UI;
-using static UnityEditor.Experimental.GraphView.GraphView;
 
 public class DetailVisualization:MonoBehaviour {
     public Text network_details;
@@ -15,10 +15,13 @@ public class DetailVisualization:MonoBehaviour {
     public List<float> Losses;
     GameObject[] points;
 
-    [SerializeField] float multX = 0.95f;
+    [SerializeField] float multX = 0.925f;
     [SerializeField] float multY = 0.95f;
     [SerializeField] float LimitX = 1920;
-    [SerializeField] float LimitY = 1080 - 316;
+    [SerializeField] float LimitY = 1080 - 79 * 5;
+
+    [SerializeField] float point_size = 35f;
+    [SerializeField] 
 
     public static DetailVisualization instance;
 
@@ -50,7 +53,7 @@ public class DetailVisualization:MonoBehaviour {
     static int compress_threshold = 2000;
     static float compress_power = 4f;
     public static void StoreLoss(float loss) {
-        if (instance.Losses.Count == compress_threshold) CompressLosses();
+        if (instance.Losses.Count >= compress_threshold) CompressLosses();
         instance.Losses.Add(loss);
     }
 
@@ -80,16 +83,35 @@ public class DetailVisualization:MonoBehaviour {
     void PrintDetails() {
         string txt = $"Learning Rate: {Trainer.learning_rate}\n";
         txt += $"Training Batch Size: {Trainer.batchSize}, Cycles: {Trainer.cycles}\n";
+        
         txt += $"\n";
+
+        double time = Trainer.timeDelta;
+        if (Trainer.isTraining) time *= (Trainer.TrainingAmount - Trainer.TrainingProgress)/Trainer.batchSize;
+        else if (Trainer.isTesting) time *= Trainer.TestingAmount - Trainer.TestingProgress;
+        int seconds = (int)time % 60;
+        int minutes = ((int)time / 60) % 60;
+        int hours = ((int)time / 60) / 60;
+        txt += $"Estimated Time: ";
+        if (hours > 0) txt += $"{hours:D2}:";
+        if ((minutes > 0) || (hours > 0)) txt += $"{minutes:D2}:";
+        txt += $"{seconds:D2}";
+        txt += $"\n";
+
         if (Trainer.isTraining) {
             float d = Trainer.TrainingAmount / progressbars;
             txt += $"Training Progress:";
             for (int i = 0; i < progressbars; i++) {
-                txt += Trainer.TrainingProgress > d * i ? "|" : "·";
+                txt += Trainer.TrainingProgress > d * i ? "█" : "▒";
             }
-            txt += "\n";
+        } else if (Trainer.isTesting) {
+            float d = Trainer.TestingAmount / progressbars;
+            txt += $"Testing Progress:";
+            for (int i = 0; i < progressbars; i++) {
+                txt += Trainer.TestingProgress > d * i ? "█" : "▒";
+            }
         } else {
-            txt += $"Training completed.\n";
+            txt += "Program is idle.";
         }
 
         network_details.text = txt;
@@ -101,8 +123,9 @@ public class DetailVisualization:MonoBehaviour {
 
         float x = offsetX + index * (LimitX * multX - offsetX * 0.25f) / (Losses.Count + 1);
 
-        float y = offsetY;
-        if (max != 0) y += (LimitY * multY - offsetY * 2) * (loss - min) / max;
+        float y;
+        if ((max != 0) && (max != min)) y = offsetY + (1080 * (multY - 1) + LimitY - offsetY) * (loss - min) / (max - min);
+        else y = LimitY / 2f;
 
         return new Vector2(x, y);
     }
@@ -124,6 +147,9 @@ public class DetailVisualization:MonoBehaviour {
         tex.SetPixel(0, 0, Color.white);
         tex.Apply();
 
+        Vector2 size = Vector2.one * point_size;
+        if (Losses.Count > 1) size /= Mathf.Log(Losses.Count);
+
         int index = 0;
         foreach (float loss in Losses) {
             Vector2 pos = PointPosition(index, loss, max, min);
@@ -134,7 +160,7 @@ public class DetailVisualization:MonoBehaviour {
             points[index].AddComponent<RawImage>().texture = tex;
 
             points[index].transform.position = pos;
-            points[index].GetComponent<RectTransform>().sizeDelta = Vector2.one * (40f / Mathf.Log(Losses.Count));
+            points[index].GetComponent<RectTransform>().sizeDelta = size;
 
             index++;
         }
@@ -152,25 +178,24 @@ public class DetailVisualization:MonoBehaviour {
         }
 
         int use = 1;
-        for (int c = graph_numbers.Count; c > 0; c--) {
-            if ((max - min) / (c - 1) > 0.15f) {
-                use = c;
+        for (int i = graph_numbers.Count; i > 0; i--) {
+            if ((max - min) / (i - 1) > 0.15f) {
+                use = i;
                 break;
             }
         }
 
 
-        int i = 0;
-        for (; i < use; i++) {
-            float value = min + i * (max - min) / (use - 1);
+        for (int i = 0; i < graph_numbers.Count; i++) {
+            graph_numbers[i].enabled = i < use;
+            if (i >= use) continue;
+
+            float value = min;
+            if (use != 1) value += i * (max - min) / (use - 1);
             graph_numbers[i].text = value.ToString("F2");
             Vector3 pos = PointPosition(0, value, max, min);
-            pos.x = 1920 * (1 - multX);
+            pos.x = (1920 * (1 - multX) + 96f) / 2f;
             graph_numbers[i].transform.position = pos;
-            graph_numbers[i].enabled = true;
-        }
-        for (; i < graph_numbers.Count; i++) {
-            graph_numbers[i].enabled = false;
         }
     }
 }

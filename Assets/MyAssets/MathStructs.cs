@@ -1,8 +1,5 @@
 using System;
-using System.Numerics;
 using System.Text;
-using Unity.VisualScripting;
-using UnityEngine;
 
 namespace NeuralNetworkSystem {
     public class Vector {
@@ -72,7 +69,7 @@ namespace NeuralNetworkSystem {
             Matrix R = new Matrix(1, Length);
 
             for (int i = 0; i < Length; i++) {
-                R[1, i] = this[i];
+                R[0, i] = this[i];
             }
             return R;
         }
@@ -100,7 +97,7 @@ namespace NeuralNetworkSystem {
         }
 
         public static Vector operator *(Matrix A, Vector B) {
-            if (A.Columns == B.Length) throw new Exception("Tried to multiply Matrix and Vector with unequal Columns x Length!");
+            if (A.Columns != B.Length) throw new Exception("Tried to multiply Matrix and Vector with unequal Columns x Length!");
 
             Vector R = new Vector(A.Rows);
 
@@ -122,7 +119,7 @@ namespace NeuralNetworkSystem {
         }
 
         public Vector ElementMultiplication(Vector A) {
-            if (Length == A.Length) throw new Exception("Tried to do element multiplication on two Vectors with unequal Lengths!");
+            if (Length != A.Length) throw new Exception("Tried to do element multiplication on two Vectors with unequal Lengths!");
 
             Vector R = new Vector(Length);
 
@@ -241,7 +238,7 @@ namespace NeuralNetworkSystem {
 
             for (int i = 0; i < A.Length; i++) {
                 for (int j = 0; j < B.Columns; j++) {
-                    R[i, j] = A[i] * B[1, j];
+                    R[i, j] = A[i] * B[0, j];
                 }
             }
             return R;

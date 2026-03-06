@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -45,7 +46,9 @@ namespace NeuralNetworkSystem {
             this.cycles = cycles;
             this.learning_rate = learning_rate;
 
+            timeDelta = 0;
             isTraining = false;
+            isTesting = false;
             PausedTraining = false;
             StepTraining = false;
         }
@@ -62,6 +65,14 @@ namespace NeuralNetworkSystem {
         public bool StepTraining { get; private set; }
         public int TrainingProgress { get; private set; }
         public int TrainingAmount { get; private set; }
+
+        public bool isTesting { get; private set; }
+        public int TestingProgress { get; private set; }
+        public int TestingAccuracy { get; private set; }
+        public int TestingAmount { get; private set; }
+
+        public double timeDelta { get; private set; }
+        DateTime timeTemp;
 
         CancellationTokenSource canceltoken;
         
@@ -152,6 +163,13 @@ namespace NeuralNetworkSystem {
             Pause,
             Step,
             DoStep,
+
+            TestStart,
+            TestProgress,
+            TestFinish,
+
+            ErrorTraining,
+            ErrorTesting
         }
         void PrintMessage(ConsoleMessages type) {
             if (type == ConsoleMessages.Start) UnityEngine.Debug.Log($"Started training on {TrainingAmount} examples.");
@@ -163,33 +181,19 @@ namespace NeuralNetworkSystem {
             else if (type == ConsoleMessages.Pause) UnityEngine.Debug.Log((PausedTraining ? "Paused" : "Unpaused") + " training.");
             else if (type == ConsoleMessages.Step) UnityEngine.Debug.Log((StepTraining ? "Enabled" : "Disabled") + " step training.");
             else if (type == ConsoleMessages.DoStep) UnityEngine.Debug.Log("Did one training step.");
-        }
+
+            else if (type == ConsoleMessages.TestStart) { UnityEngine.Debug.Log($"Started testing on {TestingAmount} test samples."); } else if (type == ConsoleMessages.TestProgress) {
+                if (ProgramHandler.instance.disableMessages) return;
+                UnityEngine.Debug.Log($"Training is {100 * (double)TestingProgress / TestingAmount:F2}% Complete [{TestingProgress}/{TestingAmount}]");
+            } else if (type == ConsoleMessages.TestFinish) {
+                UnityEngine.Debug.Log($"Testing complete with {(double)TestingAccuracy / TestingAmount * 100}% accuracy. [{TestingAccuracy}/{TestingAmount}]");
+
+            } else if (type == ConsoleMessages.ErrorTraining) UnityEngine.Debug.Log($"Wait until the training is complete before starting the testing process.");
+            else if (type == ConsoleMessages.ErrorTesting) { UnityEngine.Debug.Log($"Wait until the testing is complete before starting the training process."); }
+            
+            }
 
         int delay_ticks = 750;
-
-        //public async Task MNIST_Training() {
-        //    MNISTDatabase database = new MNISTDatabase("Assets/StreamingAssets/MNIST/train-images.idx3-ubyte", "Assets/StreamingAssets/MNIST/train-labels.idx1-ubyte");
-
-        //    TrainingProgress = 0;
-        //    TrainingAmount = database.Size;
-        //    isTraining = true;
-
-        //    PrintMessage(ConsoleMessages.Start);
-        //    int counter = 0;
-        //    for (int i = 0; i < database.Size; i += batchSize) {
-        //        if (!isTraining) return;
-        //        bool breath = counter >= delay_ticks;
-        //        await Train(new DataBatch(database.ReadBatch(batchSize)), breath);
-        //        if (breath) counter = 0;
-        //    }
-        //    isTraining = false;
-        //    database.CloseLoad();
-
-        //    PrintMessage(ConsoleMessages.Finish);
-        //    DetailVisualization.Refresh();
-        //}
-
-
 
         async Task Train(DataBatch batch, bool breath) {
             if (PausedTraining) await WaitFor(-1, canceltoken.Token);
@@ -199,8 +203,10 @@ namespace NeuralNetworkSystem {
             if (breath) {
                 PrintMessage(ConsoleMessages.Progress);
                 DetailVisualization.Refresh();
+                timeDelta = (DateTime.Now - timeTemp).TotalSeconds;
                 await Task.Delay(1);
             }
+            timeTemp = DateTime.Now;
 
         }
 
@@ -212,6 +218,10 @@ namespace NeuralNetworkSystem {
 
         public async Task MNIST_RandomTraining() { await MNIST_RandomTraining(cycles); }
         public async Task MNIST_RandomTraining(int loops) {
+            if (isTesting) {
+                PrintMessage(ConsoleMessages.ErrorTesting);
+                return;
+            }
             DataBatch training_data = new DataBatch(MNISTDatabase.LoadAllTrainingData());
 
             TrainingProgress = 0;
@@ -220,6 +230,7 @@ namespace NeuralNetworkSystem {
 
             PrintMessage(ConsoleMessages.Start);
             int counter = 0;
+            timeTemp = DateTime.Now;
             for (int cycle = 0; cycle < loops; cycle++) {
                 training_data.Shuffle();
                 for (int i = 0; i < training_data.Size; i += batchSize) {
@@ -235,6 +246,53 @@ namespace NeuralNetworkSystem {
             
             PrintMessage(ConsoleMessages.Finish);
             DetailVisualization.Refresh();
+        }
+
+
+        public async Task MINST_Test() {
+            if (isTraining) {
+                PrintMessage(ConsoleMessages.ErrorTraining);
+                return;
+            }
+            MNISTDatabase database = new MNISTDatabase("Assets/StreamingAssets/MNIST/t10k-images.idx3-ubyte", "Assets/StreamingAssets/MNIST/t10k-labels.idx1-ubyte");
+
+            List<Data> wrongs = new List<Data>();
+            List<int> wrong_labels = new List<int>();
+
+            isTesting = true;
+            TestingAmount = database.Size;
+            TestingAccuracy = 0;
+            PrintMessage(ConsoleMessages.TestStart);
+            int counter = 0;
+            timeTemp = DateTime.Now;
+            for (TestingProgress = 0; TestingProgress < TestingAmount; TestingProgress++) {
+                Data TestingData = database.ReadBatch(1)[0];
+                Vector result = Network.Calculate(TestingData.data);
+
+                int guess = result.MaxIndex();
+                if (guess == TestingData.label) {
+                    TestingAccuracy++;
+                } else {
+                    wrongs.Add(TestingData);
+                    wrong_labels.Add(guess);
+                }
+
+                counter += 1;
+                if (counter >= delay_ticks) {
+                    PrintMessage(ConsoleMessages.TestProgress);
+                    DetailVisualization.Refresh();
+                    timeDelta = (DateTime.Now - timeTemp).TotalSeconds;
+                    await Task.Delay(1);
+                    counter = 0;
+                }
+                timeTemp = DateTime.Now;
+            }
+            isTesting = false;
+            database.CloseLoad();
+
+            PrintMessage(ConsoleMessages.TestFinish);
+            DetailVisualization.Refresh();
+            Visualization.instance.DrawImages(wrongs.ToArray(), wrong_labels.ToArray());
         }
     }
 }
