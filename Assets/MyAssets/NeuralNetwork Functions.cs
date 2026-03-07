@@ -5,6 +5,18 @@ using Unity.VisualScripting.Antlr3.Runtime;
 //using System.Runtime.Instricts.x86;
 
 namespace NeuralNetworkSystem {
+    /*
+    
+    These variables here are the functions the whole program needs in order to work.
+
+    InputNormalization: A change we can do to our input in order to make it more suitable for our network.
+
+    OutputActivation: The function which we will use in order to properly activate the neurons of the last layer, in order to get the correct values.
+                      Note that this function is specifically for the output, since if we were to put it in the hidden layers, it would break the strength
+                      of each activation.
+
+    LossCalculation
+    */
     public delegate float[] InputNormalization(float[] input);
     public delegate float[] OutputActivation(float[] input);
     public delegate float LossCalculation(float[] V, int label);
@@ -219,17 +231,39 @@ namespace NeuralNetworkSystem {
         ReLU
     }
     public abstract class ActivationFunctions {
-        // Sigmoid heavily punishes bad Neurons, while heavily rewarding good Neurons.
+        /*
+         
+        f(x) = 1 / (e^(-x) + 1), f: R -> (0, 1)
+        f'(x) = e^(-x) / ( (e^(-x) + 1)^2 ) = f(x) * f(-x)
+        
+        This function confies all numbers into the range (0, 1),
+        it returns a number close to 0 the closer the number is to negative infinity and close to 1 the closer the number is to positive infinity
+
+        Sigmoid heavily punishes bad Neurons, while heavily rewarding good Neurons.
+
+        */
+
         public static float Sigmoid(float value) {
             float e = (float)Math.Exp(-value);
-            return - e / (e + 1);
+            return 1 / (e + 1);
         }
         public static float SigmoidDerivative(float value) {
             float e = (float)Math.Exp(-value);
             return e / ((1 + e) * (1 + e));
         }
 
-        // ReLU heavily rewards good Neurons while essentially ignoring bad ones.
+        /*
+        
+        f(x) = { x, x > 0       , f: R -> [0, + infinity)
+               { 0, x <= 0
+
+        This function stops any negative value from proceeding.
+
+        ReLU heavily rewards good Neurons while essentially ignoring bad ones. In a more general sense, it only uses anything it can take advantage of and ignoers anything it doesn't find worthy.
+        This function is especially important for Transformers (LLM, GPT)
+        
+        */
+
         public static float ReLU(float value) {
             return value >= 0 ? value : 0;
         }
@@ -243,9 +277,27 @@ namespace NeuralNetworkSystem {
         NormalizeMeadian
     }
     public abstract class InputNormalizationFunctions {
+
+
+        /*
+        
+        For this project, we use the MNIST database, which gives us the gray scale values of images and the handler for that transforms that into floats from [0,1], with 0 being the value 0 and 255 being the value 1.
+        None is pretty much "What if we used these numbers directly?" which isn't a bad approach, however it might take a bit more time for the network to adjust to using the range [0,1]
+
+        */
+
         public static float[] None(float[] input) {
             return input;
         }
+
+        /*
+        
+        NormalizeMedian essentially helps the network by slightly adjust the inputs for it. Instead of having a value [0, 1], we now instead have a value that relates to the pixel value compared to all other pixels.
+        This our database is a solved problem, we can chuck the values directly (look at "mean" and "std" variables), however if you wanted to calculate the values yourself, you'd do:
+
+        mean = sum 
+
+        */
 
         public static float[] NormalizeMedian(float[] input) {
             float mean = 0.1307f;
