@@ -1,9 +1,6 @@
 using UnityEngine;
-using System;
 using NeuralNetworkSystem;
-using System.Collections.Generic;
 using System.Threading.Tasks;
-using UnityEditor.ShaderGraph.Internal;
 
 public class ProgramHandler : MonoBehaviour {
 
@@ -28,6 +25,8 @@ public class ProgramHandler : MonoBehaviour {
     public NeuralNetworkTrainer Trainer;
 
     [SerializeField] float learning_rate = 0.075f;
+    [SerializeField] bool learning_rate_decay = true;
+    [SerializeField] int learning_rate_decay_patience = 500;
     [SerializeField] int batchSize = 100;
     [SerializeField] int cycles = 1;
     [SerializeField] int seed = 5000;
@@ -112,7 +111,7 @@ public class ProgramHandler : MonoBehaviour {
                 adjust_weights_function, adjust_bias_function, activation_function)
             );
 
-        Trainer = new NeuralNetworkTrainer(Network, FunctionManager.GetLossFunction(loss_function), learning_rate, batchSize, cycles);
+        Trainer = new NeuralNetworkTrainer(Network, FunctionManager.GetLossFunction(loss_function), learning_rate, learning_rate_decay, learning_rate_decay_patience, batchSize, cycles);
 
         await Task.Delay(1);
         DetailVisualization.Initialize(Network, Trainer);

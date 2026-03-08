@@ -39,12 +39,15 @@ namespace NeuralNetworkSystem {
     }
 
     public class NeuralNetworkTrainer {
-        public NeuralNetworkTrainer(NeuralNetwork network, LossCalculation loss_function, float learning_rate = 0.075f, int batchSize = 100, int cycles = 5) {
+        public NeuralNetworkTrainer(NeuralNetwork network, LossCalculation loss_function, float learning_rate = 0.075f, bool lr_decay = true, int lr_decay_patience = 10, int batchSize = 100, int cycles = 5) {
             Network = network;
             LossFunction = loss_function;
             this.batchSize = batchSize;
             this.cycles = cycles;
-            this.learning_rate = learning_rate;
+            base_learning_rate = learning_rate;
+            LearningRate = base_learning_rate;
+            learning_rate_decay = lr_decay;
+            learning_rate_decay_patience = lr_decay_patience;
 
             timeDelta = 0;
             isTraining = false;
@@ -55,7 +58,14 @@ namespace NeuralNetworkSystem {
 
         NeuralNetwork Network { get; }
         LossCalculation LossFunction { get; }
-        public float learning_rate { get; }
+        
+        public float base_learning_rate { get; }
+        public float LearningRate { get; private set; }
+        public bool learning_rate_decay {  get; }
+        public int learning_rate_decay_patience {  get; }
+        float min_loss = -1;
+        int loss_counter = 0;
+
         public int batchSize { get; }
         public int cycles { get; }
         public int Seed { get; }
@@ -112,7 +122,6 @@ namespace NeuralNetworkSystem {
             }
 
             float avg = 0f;
-
             foreach (Data TrainingData in DataBatch.Data) {
                 if (StepTraining) {
                     canceltoken = new CancellationTokenSource();
@@ -123,7 +132,19 @@ namespace NeuralNetworkSystem {
             avg /= DataBatch.Size;
             DetailVisualization.StoreLoss(avg);
 
-            float scale = learning_rate / DataBatch.Size;
+            if (min_loss == -1f) min_loss = avg;
+            if (avg >= min_loss) {
+                loss_counter++;
+                if (loss_counter > learning_rate_decay_patience) {
+                    loss_counter = 0;
+                    LearningRate *= 0.5f;
+                }
+            } else {
+                min_loss = avg;
+                loss_counter = 0;
+            }
+
+            float scale = LearningRate / DataBatch.Size;
             for (int i = 1; i < Network.LayerAmount; i++) {
                 int l = i - 1;
                 Network.Layers[i].AdjustWeight(ref WeightDelta[l], scale);

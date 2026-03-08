@@ -50,8 +50,8 @@ public class DetailVisualization:MonoBehaviour {
         instance.PrintDetails();
     }
 
-    static int compress_threshold = 2000;
-    static float compress_power = 4f;
+    static int compress_threshold = 1000;
+    static int compress_power = 4;
     public static void StoreLoss(float loss) {
         if (instance.Losses.Count >= compress_threshold) CompressLosses();
         instance.Losses.Add(loss);
@@ -61,7 +61,7 @@ public class DetailVisualization:MonoBehaviour {
         List<float> tmp = new List<float>();
 
         List<float>.Enumerator listhander = instance.Losses.GetEnumerator();
-        for (int i = 0; i < instance.Losses.Count; i += 2) {
+        for (int i = 0; i < instance.Losses.Count; i += compress_power) {
             float value = 0f;
             for (int j = 0; j < compress_power; j++) {
                 value += listhander.Current;
@@ -79,9 +79,9 @@ public class DetailVisualization:MonoBehaviour {
     }
 
 
-    [SerializeField] int progressbars = 34;
+    [SerializeField] int progressbars = 35;
     void PrintDetails() {
-        string txt = $"Learning Rate: {Trainer.learning_rate}\n";
+        string txt = $"Learning Rate: {Trainer.LearningRate} ({Trainer.base_learning_rate})\n";
         txt += $"Training Batch Size: {Trainer.batchSize}, Cycles: {Trainer.cycles}\n";
         
         txt += $"\n";
