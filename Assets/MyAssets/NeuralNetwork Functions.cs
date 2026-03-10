@@ -1,6 +1,5 @@
 using System;
 using System.Numerics;
-using Unity.VisualScripting.Antlr3.Runtime;
 //using System.Runtime.Instricts;
 //using System.Runtime.Instricts.x86;
 
@@ -81,6 +80,7 @@ namespace NeuralNetworkSystem {
         }
     }
 
+    // Warning, this code is NOT good, I just did it cause it was the simplest way I could think of doing it.
     public class FunctionManager {
         public static Func<float, float> GetActivationFunction(ActivationFunctionsTypes type) {
             switch (type) {
@@ -122,9 +122,9 @@ namespace NeuralNetworkSystem {
             switch (type) {
                 case ForwardFunctionsTypes.Educational: return EducationalFunctions.CalculateValue;
                 case ForwardFunctionsTypes.Scalar: return ScalarFunctions.CalculateValue;
-                case ForwardFunctionsTypes.Parallel: return ParallelFunctions.CalculateValue;
-                case ForwardFunctionsTypes.SSE: return SSEFunctions.CalculateValue;
-                case ForwardFunctionsTypes.AVX: return AVXFunctions.CalculateValue;
+                case ForwardFunctionsTypes.SIMD: return SIMDFunctions.CalculateValue;
+                //case ForwardFunctionsTypes.SSE: return SSEFunctions.CalculateValue;
+                //case ForwardFunctionsTypes.AVX: return AVXFunctions.CalculateValue;
             }
             return null;
         }
@@ -133,9 +133,9 @@ namespace NeuralNetworkSystem {
             switch (type) {
                 case BackwardFunctionsTypes.Educational: return EducationalFunctions.Backward;
                 case BackwardFunctionsTypes.Scalar: return ScalarFunctions.Backward;
-                case BackwardFunctionsTypes.Parallel: return ParallelFunctions.Backward;
-                case BackwardFunctionsTypes.SSE: return SSEFunctions.Backward;
-                case BackwardFunctionsTypes.AVX: return AVXFunctions.Backward;
+                case BackwardFunctionsTypes.SIMD: return SIMDFunctions.Backward;
+                //case BackwardFunctionsTypes.SSE: return SSEFunctions.Backward;
+                //case BackwardFunctionsTypes.AVX: return AVXFunctions.Backward;
             }
             return null;
         }
@@ -143,9 +143,9 @@ namespace NeuralNetworkSystem {
             switch (type) {
                 case BackwardOutputFunctionsTypes.Educational: return EducationalFunctions.BackwardOutput;
                 case BackwardOutputFunctionsTypes.Scalar: return ScalarFunctions.BackwardOutput;
-                case BackwardOutputFunctionsTypes.Parallel: return ParallelFunctions.BackwardOutput;
-                case BackwardOutputFunctionsTypes.SSE: return SSEFunctions.BackwardOutput;
-                case BackwardOutputFunctionsTypes.AVX: return AVXFunctions.BackwardOutput;
+                case BackwardOutputFunctionsTypes.SIMD: return SIMDFunctions.BackwardOutput;
+                //case BackwardOutputFunctionsTypes.SSE: return SSEFunctions.BackwardOutput;
+                //case BackwardOutputFunctionsTypes.AVX: return AVXFunctions.BackwardOutput;
             }
             return null;
         }
@@ -153,9 +153,9 @@ namespace NeuralNetworkSystem {
             switch (type) {
                 case BackwardWeightsFunctionsTypes.Educational: return EducationalFunctions.BackwardWeights;
                 case BackwardWeightsFunctionsTypes.Scalar: return ScalarFunctions.BackwardWeights;
-                case BackwardWeightsFunctionsTypes.Parallel: return ParallelFunctions.BackwardWeights;
-                case BackwardWeightsFunctionsTypes.SSE: return SSEFunctions.BackwardWeights;
-                case BackwardWeightsFunctionsTypes.AVX: return AVXFunctions.BackwardWeights;
+                case BackwardWeightsFunctionsTypes.SIMD: return SIMDFunctions.BackwardWeights;
+                //case BackwardWeightsFunctionsTypes.SSE: return SSEFunctions.BackwardWeights;
+                //case BackwardWeightsFunctionsTypes.AVX: return AVXFunctions.BackwardWeights;
             }
             return null;
         }
@@ -163,9 +163,9 @@ namespace NeuralNetworkSystem {
             switch (type) {
                 case BackwardBiasFunctionsTypes.Educational: return EducationalFunctions.BackwardBias;
                 case BackwardBiasFunctionsTypes.Scalar: return ScalarFunctions.BackwardBias;
-                case BackwardBiasFunctionsTypes.Parallel: return ParallelFunctions.BackwardBias;
-                case BackwardBiasFunctionsTypes.SSE: return SSEFunctions.BackwardBias;
-                case BackwardBiasFunctionsTypes.AVX: return AVXFunctions.BackwardBias;
+                case BackwardBiasFunctionsTypes.SIMD: return SIMDFunctions.BackwardBias;
+                //case BackwardBiasFunctionsTypes.SSE: return SSEFunctions.BackwardBias;
+                //case BackwardBiasFunctionsTypes.AVX: return AVXFunctions.BackwardBias;
             }
             return null;
         }
@@ -174,9 +174,9 @@ namespace NeuralNetworkSystem {
             switch (type) {
                 case AdjustWeightsFunctionsTypes.Educational: return EducationalFunctions.AdjustWeights;
                 case AdjustWeightsFunctionsTypes.Scalar: return ScalarFunctions.AdjustWeights;
-                case AdjustWeightsFunctionsTypes.Parallel: return ParallelFunctions.AdjustWeights;
-                case AdjustWeightsFunctionsTypes.SSE: return SSEFunctions.AdjustWeights;
-                case AdjustWeightsFunctionsTypes.AVX: return AVXFunctions.AdjustWeights;
+                case AdjustWeightsFunctionsTypes.SIMD: return SIMDFunctions.AdjustWeights;
+                //case AdjustWeightsFunctionsTypes.SSE: return SSEFunctions.AdjustWeights;
+                //case AdjustWeightsFunctionsTypes.AVX: return AVXFunctions.AdjustWeights;
             }
             return null;
         }
@@ -184,9 +184,9 @@ namespace NeuralNetworkSystem {
             switch (type) {
                 case AdjustBiasFunctionsTypes.Educational: return EducationalFunctions.AdjustBias;
                 case AdjustBiasFunctionsTypes.Scalar: return ScalarFunctions.AdjustBias;
-                case AdjustBiasFunctionsTypes.Parallel: return ParallelFunctions.AdjustBias;
-                case AdjustBiasFunctionsTypes.SSE: return SSEFunctions.AdjustBias;
-                case AdjustBiasFunctionsTypes.AVX: return AVXFunctions.AdjustBias;
+                case AdjustBiasFunctionsTypes.SIMD: return SIMDFunctions.AdjustBias;
+                //case AdjustBiasFunctionsTypes.SSE: return SSEFunctions.AdjustBias;
+                //case AdjustBiasFunctionsTypes.AVX: return AVXFunctions.AdjustBias;
             }
             return null;
         }
@@ -234,7 +234,7 @@ namespace NeuralNetworkSystem {
         /*
          
         f(x) = 1 / (e^(-x) + 1), f: R -> (0, 1)
-        f'(x) = e^(-x) / ( (e^(-x) + 1)^2 ) = f(x) * f(-x)
+        f'(x) = e^(-x) / ( (e^(-x) + 1)^2 ) = f(x) * ( 1 - f(x) )
         
         This function confies all numbers into the range (0, 1),
         it returns a number close to 0 the closer the number is to negative infinity and close to 1 the closer the number is to positive infinity
@@ -248,8 +248,8 @@ namespace NeuralNetworkSystem {
             return 1 / (e + 1);
         }
         public static float SigmoidDerivative(float value) {
-            float e = (float)Math.Exp(-value);
-            return e / ((1 + e) * (1 + e));
+            float a = Sigmoid(value);
+            return a * (1 - a);
         }
 
         /*
@@ -259,7 +259,7 @@ namespace NeuralNetworkSystem {
 
         This function stops any negative value from proceeding.
 
-        ReLU heavily rewards good Neurons while essentially ignoring bad ones. In a more general sense, it only uses anything it can take advantage of and ignoers anything it doesn't find worthy.
+        ReLU keeps positive signals while supressing negative ones. In a more general sense, it only uses anything it can take advantage of and ignores anything it doesn't find worthy.
         This function is especially important for Transformers (LLM, GPT)
         
         */
@@ -268,7 +268,7 @@ namespace NeuralNetworkSystem {
             return value >= 0 ? value : 0;
         }
         public static float ReLUDerivative(float value) {
-            return value >= 0 ? 1 : 0;
+            return value > 0 ? 1 : 0;
         }
     }
 
@@ -295,7 +295,7 @@ namespace NeuralNetworkSystem {
         NormalizeMedian essentially helps the network by slightly adjust the inputs for it. Instead of having a value [0, 1], we now instead have a value that relates to the pixel value compared to all other pixels.
         This our database is a solved problem, we can chuck the values directly (look at "mean" and "std" variables), however if you wanted to calculate the values yourself, you'd do:
 
-        mean = sum 
+        mean = sum      
 
         */
 
@@ -317,17 +317,8 @@ namespace NeuralNetworkSystem {
     public abstract class OutputFunctions {
         /*
 
-        SoftMax is a function that takes a Vector, or in general an array of data, and returns
-        a Vector that has the probability distribution of these values.
+        SoftMax is a function that takes many values and returns the probability distribution of these values.
         The sum of this Vector will always be 1.
-
-        Assuming N = the length of the final layer
-        We have to find the following:
-        Max, which is O(N)
-        Sum, which is O(N)
-        Result, which again, is O(N)
-
-        So we end up having O(3N) time complexity, which simplifies to O(N)
 
         */
         public static float[] SoftMax(float[] output) {
@@ -335,18 +326,18 @@ namespace NeuralNetworkSystem {
             float[] r = new float[length];
 
             float max = output[0];
-            for (int i = 1; i < length; i++) { // N loops
+            for (int i = 1; i < length; i++) {
                 if (max < output[i]) max = output[i];
             }
 
             float sum = 0f;
-            for (int i = 0; i < length; i++) { // N loops
+            for (int i = 0; i < length; i++) {
                 float e = (float)Math.Exp(output[i] - max);
                 r[i] = e;
                 sum += e;
             }
 
-            for (int i = 0; i < length; i++) { // N loops
+            for (int i = 0; i < length; i++) {
                 r[i] /= sum;
             }
 
@@ -372,57 +363,94 @@ namespace NeuralNetworkSystem {
     public enum ForwardFunctionsTypes {
         Educational,
         Scalar,
-        Parallel,
-        SSE,
-        AVX
+        SIMD,
+        //SSE,
+        //AVX
     }
     public enum BackwardFunctionsTypes {
         Educational,
         Scalar,
-        Parallel,
-        SSE,
-        AVX
+        SIMD,
+        //SSE,
+        //AVX
     }
     public enum BackwardOutputFunctionsTypes {
         Educational,
         Scalar,
-        Parallel,
-        SSE,
-        AVX
+        SIMD,
+        //SSE,
+        //AVX
     }
     public enum BackwardWeightsFunctionsTypes {
         Educational,
         Scalar,
-        Parallel,
-        SSE,
-        AVX
+        SIMD,
+        //SSE,
+        //AVX
     }
     public enum BackwardBiasFunctionsTypes {
         Educational,
         Scalar,
-        Parallel,
-        SSE,
-        AVX
+        SIMD,
+        //SSE,
+        //AVX
     }
     public enum AdjustWeightsFunctionsTypes {
         Educational,
         Scalar,
-        Parallel,
-        SSE,
-        AVX
+        SIMD,
+        //SSE,
+        //AVX
     }
     public enum AdjustBiasFunctionsTypes {
         Educational,
         Scalar,
-        Parallel,
-        SSE,
-        AVX
+        SIMD,
+        //SSE,
+        //AVX
     }
 
+    /*
+    
+    The Educational Functions are for people who want to take a first look at the math of Neural Networks.
+    These functions are Scalar, meaning that each calculation is done one after the other with no parallel calculations.
+
+    While the code looks okay and clean, the main problem with this approach is ram allocation.
+    Inside "MathStructs.cs" you can see the code each operator and the first thing you'll see is how it returns a new Vector/Matrix each time.
+    
+    For example, V = Wx+B
+
+    For simplicity, we will call N[L] the size of the current layer L and the size of the previous layer N[L-1]
+
+    For starters, we have the variables:
+
+    V: N[L]
+    W: N[L] * N[L-1]
+    x: N[L-1]
+    B: N[L]
+
+            V          W             x      B
+    Total: N[L] + N[L] * N[L-1] + N[L-1] + N[L] = 2N[L] + N[L-1] + N[L] * N[L-1]
+
+    When the calculation W*x happens, we create a new Vector with size N[L] and we will call this Vector tmp
+    Then, we have the calculation tmp + B, which creates a new Vector of size N[L], we will call this one R
+    Lastly, we set the data of the Vector V to the data of the Vector R.
+
+                                                tmp     R
+    So now, our total suddenly went to: Total + N[L] + N[L] = 4N[L] + N[L-1] + N[L] * N[L-1]
+    The percentage of how much extra memory this takes is around 2N[L] / Total, however in bigger models where memory is finite, we need to do better.
+
+    Small note that it is still possible to do implement this without the memory issues, however for reason you'll see in Scalar, it's not worth it.
+    For those who are curious though, you can simply make each operator a function of the class. So instead of W*x. you'd have W.Multiply(x).
+
+    */
     public abstract class EducationalFunctions {
         public static void CalculateValue(Layer layer, Func<float, float> ActivationFunc, Vector input) {
 
             /*
+            
+            Forward is essentially the prediction function, in a broad sense, the Network tries to predict the what the output should be using the input it got.
+
             
             Z[L] = Weights[L] * A[L-1] + Bias[L]
 
@@ -451,6 +479,9 @@ namespace NeuralNetworkSystem {
         public static void Backward(Layer layer, Func<float, float> ActivationFuncDer) {
 
             /*
+            
+            Backward looks at what it got, it looks at what it was supposed to get and thinks of a way to become better.
+            
             
             D[L] = (W[L+1].T * D[L+1]) ⊙ σ'(Z[L])
             
@@ -538,6 +569,26 @@ namespace NeuralNetworkSystem {
             layer.Bias -= BiasDelta * scale;
         }
     }
+
+
+    /*
+    
+    Scalar has the first big improvement we can make in our algorithm, which is both in regards to memory (look at Educational) and in time.
+    The Educational Functions did each computation one by one, meaning we first calculated W*x and then added B, when we can simply do in parallel.
+
+    Once again, the amount of Neurons in a Layer is N[L]
+    
+    Our mental model now moves towards the notation
+    
+    -------------------------------W*x+B------------------------------
+                   --------------------W[i]*x+B[i]--------------------
+                            ------------------W[i]*x------------------
+    Σ{i: 1->N[L] } ( B[i] + Σ{j: 1 -> N[L-1] } ( W[i, j] * x[j] ) ) 
+
+    So now, not only do we avoid the additional memory Educational Functions created,
+    but we also save time, since we looping N[L] * N[L-1] times, instead of the N[L] * N[L-1] + N[L] ( W*x is O(N[L]*N[L-1]) and +B is O(N[L]) )
+
+    */
     public abstract class ScalarFunctions {
         public static void CalculateValue(Layer layer, Func<float, float> ActivationFunc, Vector input) {
             int Rows = layer.Values.Length;
@@ -612,7 +663,38 @@ namespace NeuralNetworkSystem {
             }
         }
     }
-    public abstract class ParallelFunctions {
+
+
+    /*
+    
+    SIMD (Single Instruction, Multiple Data) is the CPU's way of doing multiple instructions at once. You take multiple data and execute the same idea on all of them at once.
+    For Intel and AMD CPUs, there is SSE (128 bits), AVX (256 bits) and AVX-512 (512 bits) (SSE and AVX are not supported in Unity, cause of .NET 2.1).
+    For Arm CPUs, it has Neon which uses 64 or 128 bits.
+
+    .NET 2.1 has Vector<T>, which is what the following functions use.
+
+    Example:
+        Let's say we have 4 floats a0, b0, c0 and d0 and we want to multiple them with a1, b1, c1 and d1 respectively.
+        
+        One logical way to do so is one step at a time (scalar)
+          a0 * a1
+          b0 * b1
+          c0 * c1
+          d0 * d1
+        each multiplication requires one instruction.
+    
+        What SIMD would do is instead is group the numbers in a vector and process them as
+        [a0, b0, c0, d0] * [a1, b1, c1, d1]
+                         ↓
+        [a0 * a1, b0 * b1, c0 * c1, d0 * d1]
+        So now, instead of 4 separate instructions, we do them all at once.
+
+    The reason I used four numbers, is because in this version we also use 4.
+    .NET 2.1 used SSE, which has 128 bits, and our program uses floats (32 bits) so we can use Vectors with length 128 / 32 = 4 (shown by Vector<float>.Count)
+    Another note, due to the format of the Vector<T> initialization, if the elements we are about to put in the Vector are less then 4, we are best off using normal Scalar, as you will see in the code.
+
+    */
+    public abstract class SIMDFunctions {
         public static void CalculateValue(Layer layer, Func<float, float> ActivationFunc, Vector input) {
             int simd_width = Vector<float>.Count;
 
@@ -639,7 +721,7 @@ namespace NeuralNetworkSystem {
         }
 
         public static void Backward(Layer layer, Func<float, float> ActivationFuncDer) { // input only used in output layer
-            int simd_width = Vector<float>.Count; // 8
+            int simd_width = Vector<float>.Count;
 
             // Weight is transposed, so rows and columns are reversed.
 
@@ -684,7 +766,7 @@ namespace NeuralNetworkSystem {
             }
         }
         public static void BackwardWeights(Layer layer, ref Matrix WeightDelta) {
-            int simd_width = Vector<float>.Count; // 8
+            int simd_width = Vector<float>.Count;
 
             int Rows = layer.Delta.Length;
             int Columns = layer.PreviousLayer.Activation.Length;
@@ -708,7 +790,7 @@ namespace NeuralNetworkSystem {
             }
         }
         public static void BackwardBias(Layer layer, ref Vector BiasDelta) {
-            int simd_width = Vector<float>.Count; // 8
+            int simd_width = Vector<float>.Count;
 
             int Columns = layer.Delta.Length;
 
@@ -765,28 +847,5 @@ namespace NeuralNetworkSystem {
                 layer.Bias.Data[i] -= BiasDelta.Data[i] * scale;
             }
         }
-    }
-    public abstract class SSEFunctions {
-        public static void CalculateValue(Layer layer, Func<float, float> ActivationFunc, Vector input) { }
-
-        public static void Backward(Layer layer, Func<float, float> ActivationFuncDer) { }
-        public static void BackwardOutput(Layer layer, Vector CorrectValues) { }
-        public static void BackwardWeights(Layer layer, ref Matrix WeightDelta) { }
-        public static void BackwardBias(Layer layer, ref Vector BiasDelta) { }
-
-        public static void AdjustWeights(Layer layer, ref Matrix WeightsDelta, float scale) { }
-        public static void AdjustBias(Layer layer, ref Vector BiasDelta, float scale) { }
-    }
-    public abstract class AVXFunctions {
-        public static void CalculateValue(Layer layer, Func<float, float> ActivationFunc, Vector input) { }
-
-        public static void Backward(Layer layer, Func<float, float> ActivationFuncDer) { }
-        public static void BackwardOutput(Layer layer, Vector CorrectValues) { }
-        public static void BackwardWeights(Layer layer, ref Matrix WeightDelta) { }
-        public static void BackwardBias(Layer layer, ref Vector BiasDelta) { }
-
-        public static void AdjustWeights(Layer layer, ref Matrix WeightsDelta, float scale) { }
-        public static void AdjustBias(Layer layer, ref Vector BiasDelta, float scale) { }
-
     }
 }

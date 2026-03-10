@@ -1145,10 +1145,12 @@ MonoBehaviour:
   output_activation: 0
   activation_function: 1
   loss_function: 1
-  learning_rate: 0.0001
-  learning_rate_decay: 1
+  hidden_layers: 8000000040000000
+  learning_rate: 0.085
+  learning_rate_decay: 0
+  learning_rate_decay_patience: 500
   batchSize: 100
-  cycles: 200
+  cycles: 1
   seed: 5000
   disableMessages: 1
 --- !u!1 &1170282316

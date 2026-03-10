@@ -178,13 +178,7 @@ public class DetailVisualization:MonoBehaviour {
         }
 
         int use = 1;
-        for (int i = graph_numbers.Count; i > 0; i--) {
-            if ((max - min) / (i - 1) > 0.15f) {
-                use = i;
-                break;
-            }
-        }
-
+        if (min != max) use = graph_numbers.Count;
 
         for (int i = 0; i < graph_numbers.Count; i++) {
             graph_numbers[i].enabled = i < use;

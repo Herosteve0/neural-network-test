@@ -132,16 +132,18 @@ namespace NeuralNetworkSystem {
             avg /= DataBatch.Size;
             DetailVisualization.StoreLoss(avg);
 
-            if (min_loss == -1f) min_loss = avg;
-            if (avg >= min_loss) {
-                loss_counter++;
-                if (loss_counter > learning_rate_decay_patience) {
+            if (learning_rate_decay) {
+                if (min_loss == -1f) min_loss = avg;
+                if (avg >= min_loss) {
+                    loss_counter++;
+                    if (loss_counter > learning_rate_decay_patience) {
+                        loss_counter = 0;
+                        LearningRate *= 0.5f;
+                    }
+                } else {
+                    min_loss = avg;
                     loss_counter = 0;
-                    LearningRate *= 0.5f;
                 }
-            } else {
-                min_loss = avg;
-                loss_counter = 0;
             }
 
             float scale = LearningRate / DataBatch.Size;
@@ -205,14 +207,13 @@ namespace NeuralNetworkSystem {
 
             else if (type == ConsoleMessages.TestStart) { UnityEngine.Debug.Log($"Started testing on {TestingAmount} test samples."); } else if (type == ConsoleMessages.TestProgress) {
                 if (ProgramHandler.instance.disableMessages) return;
-                UnityEngine.Debug.Log($"Training is {100 * (double)TestingProgress / TestingAmount:F2}% Complete [{TestingProgress}/{TestingAmount}]");
+                UnityEngine.Debug.Log($"Testing is {100 * (double)TestingProgress / TestingAmount:F2}% Complete [{TestingProgress}/{TestingAmount}]");
             } else if (type == ConsoleMessages.TestFinish) {
                 UnityEngine.Debug.Log($"Testing complete with {(double)TestingAccuracy / TestingAmount * 100}% accuracy. [{TestingAccuracy}/{TestingAmount}]");
 
             } else if (type == ConsoleMessages.ErrorTraining) UnityEngine.Debug.Log($"Wait until the training is complete before starting the testing process.");
-            else if (type == ConsoleMessages.ErrorTesting) { UnityEngine.Debug.Log($"Wait until the testing is complete before starting the training process."); }
-            
-            }
+            else if (type == ConsoleMessages.ErrorTesting) { UnityEngine.Debug.Log($"Wait until the testing is complete before starting the training process."); }    
+        }
 
         int delay_ticks = 750;
 

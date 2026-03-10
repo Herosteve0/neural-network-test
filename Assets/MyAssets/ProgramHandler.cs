@@ -1,18 +1,19 @@
 using UnityEngine;
 using NeuralNetworkSystem;
 using System.Threading.Tasks;
+using System;
 
 public class ProgramHandler : MonoBehaviour {
 
-    [SerializeField] ForwardFunctionsTypes forward_function = ForwardFunctionsTypes.Parallel;
+    [SerializeField] ForwardFunctionsTypes forward_function = ForwardFunctionsTypes.SIMD;
 
-    [SerializeField] BackwardFunctionsTypes backward_function = BackwardFunctionsTypes.Parallel;
-    [SerializeField] BackwardOutputFunctionsTypes backward_output_function = BackwardOutputFunctionsTypes.Parallel;
-    [SerializeField] BackwardWeightsFunctionsTypes backward_weight_function = BackwardWeightsFunctionsTypes.Parallel;
-    [SerializeField] BackwardBiasFunctionsTypes backward_bias_function = BackwardBiasFunctionsTypes.Parallel;
+    [SerializeField] BackwardFunctionsTypes backward_function = BackwardFunctionsTypes.SIMD;
+    [SerializeField] BackwardOutputFunctionsTypes backward_output_function = BackwardOutputFunctionsTypes.SIMD;
+    [SerializeField] BackwardWeightsFunctionsTypes backward_weight_function = BackwardWeightsFunctionsTypes.SIMD;
+    [SerializeField] BackwardBiasFunctionsTypes backward_bias_function = BackwardBiasFunctionsTypes.SIMD;
 
-    [SerializeField] AdjustWeightsFunctionsTypes adjust_weights_function = AdjustWeightsFunctionsTypes.Parallel;
-    [SerializeField] AdjustBiasFunctionsTypes adjust_bias_function = AdjustBiasFunctionsTypes.Parallel;
+    [SerializeField] AdjustWeightsFunctionsTypes adjust_weights_function = AdjustWeightsFunctionsTypes.SIMD;
+    [SerializeField] AdjustBiasFunctionsTypes adjust_bias_function = AdjustBiasFunctionsTypes.SIMD;
 
     [SerializeField] InputNormalizationFunctionsType input_normalization = InputNormalizationFunctionsType.NormalizeMeadian;
     [SerializeField] OutputFunctionsType output_activation = OutputFunctionsType.SoftMax;
@@ -24,6 +25,7 @@ public class ProgramHandler : MonoBehaviour {
     public NeuralNetwork Network;
     public NeuralNetworkTrainer Trainer;
 
+    [SerializeField] int[] hidden_layers;
     [SerializeField] float learning_rate = 0.075f;
     [SerializeField] bool learning_rate_decay = true;
     [SerializeField] int learning_rate_decay_patience = 500;
@@ -34,6 +36,7 @@ public class ProgramHandler : MonoBehaviour {
     public bool disableMessages = true;
 
     public static ProgramHandler instance;
+    public static int version = 0;
 
     private void OnEnable() {
         instance = this;
@@ -63,6 +66,14 @@ public class ProgramHandler : MonoBehaviour {
         if (Input.GetKeyDown(KeyCode.V)) {
             DetailVisualization.ClearLosses();
             DetailVisualization.Refresh();
+        }
+
+        if (Input.GetKeyDown(KeyCode.Q)) {
+            NeuralNetworkStoring.Save(Network, "Assets/StreamingAssets/Save.nn");
+            Debug.Log("Saved Network!");
+        }
+        if (Input.GetKeyDown(KeyCode.W)) {
+            CreateNetwork(NeuralNetworkStoring.Load("Assets/StreamingAssets/Save.nn"));
         }
         
         //if (Input.GetKeyDown(KeyCode.Space)) {
@@ -97,20 +108,38 @@ public class ProgramHandler : MonoBehaviour {
     }
 
 
+    public static LayerFunctions GetNetworkFunctions() {
+        return FunctionManager.GetFunctions(
+                instance.forward_function, instance.input_normalization, instance.output_activation,
+                instance.backward_function, instance.backward_output_function, instance.backward_weight_function, instance.backward_bias_function,
+                instance.adjust_weights_function, instance.adjust_bias_function, instance.activation_function);
+    }
     async void CreateNetwork() {
         Debug.Log("New Network created.");
-        int[] layers = { 784, 128, 64, 10 };
+        int[] layers = new int[hidden_layers.Length + 2];
+        layers[0] = 784;
+        for (int i = 0; i < hidden_layers.Length; i++) {
+            layers[i + 1] = hidden_layers[i];
+        }
+        layers[^1] = 10;
 
         if (Network != null) Trainer.ForceStopTraining();
 
         UnityEngine.Random.InitState(seed);
-        Network = new NeuralNetwork(layers, 
-            FunctionManager.GetFunctions(
-                forward_function, input_normalization, output_activation,
-                backward_function, backward_output_function, backward_weight_function, backward_bias_function,
-                adjust_weights_function, adjust_bias_function, activation_function)
-            );
+        Network = new NeuralNetwork(layers, GetNetworkFunctions());
 
+        Trainer = new NeuralNetworkTrainer(Network, FunctionManager.GetLossFunction(loss_function), learning_rate, learning_rate_decay, learning_rate_decay_patience, batchSize, cycles);
+
+        await Task.Delay(1);
+        DetailVisualization.Initialize(Network, Trainer);
+    }
+    async void CreateNetwork(NeuralNetwork network) {
+        Debug.Log("Loaded Network.");
+
+        if (Network != null) Trainer.ForceStopTraining();
+        Network = network;
+
+        UnityEngine.Random.InitState(seed);
         Trainer = new NeuralNetworkTrainer(Network, FunctionManager.GetLossFunction(loss_function), learning_rate, learning_rate_decay, learning_rate_decay_patience, batchSize, cycles);
 
         await Task.Delay(1);
